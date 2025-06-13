@@ -518,10 +518,15 @@ st.markdown("""
 # Make the button more prominent
 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
-# Create a container for the loading animation
+# Create a container for the loading animation and button
 loading_container = st.empty()
 
-if st.button("🔄 Compare Locations Now", help="Click to load comparison data", use_container_width=True):
+# Add the comparison button with a key
+if st.button("🔄 Compare Locations Now", 
+            key="compare_button",
+            help="Click to load comparison data", 
+            use_container_width=True,
+            type="primary"):  # Make it primary to stand out
     try:
         # Show loading animation with progress
         with loading_container.container():
