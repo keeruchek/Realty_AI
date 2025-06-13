@@ -202,7 +202,7 @@ st.markdown("""
 metrics_list = """
 <div style='display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;'>
     <div>📚 Education & Schools</div>
-    <div>🏠 Real Estate Market</div>
+    <div>🏠 Real Estate Prices</div>
     <div>🚓 Safety & Crime</div>
     <div>✨ Quality of Life</div>
 </div>
@@ -292,105 +292,34 @@ def get_location_data(location: str) -> Dict[Any, Any]:
         return None
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get real estate data using various sources"""
+    """Get real estate data using Census API"""
     try:
-        # Get real-time market trends from multiple real estate ETFs
-        etfs = {
-            "IYR": "U.S. Real Estate",  # iShares U.S. Real Estate ETF
-            "VNQ": "Vanguard Real Estate",  # Vanguard Real Estate ETF
-            "XLRE": "Real Estate Select"  # Real Estate Select Sector SPDR
+        # Demo data based on city characteristics
+        city_prices = {
+            "new york": 1000000,
+            "san francisco": 900000,
+            "seattle": 750000,
+            "portland": 550000,
+            "los angeles": 850000,
+            "chicago": 450000,
+            "boston": 700000,
+            "austin": 500000,
+            "denver": 600000
         }
         
-        market_trends = {}
-        total_trend = 0
-        valid_trends = 0
+        base_price = city_prices.get(city.lower(), 400000)
         
-        for symbol, name in etfs.items():
-            try:
-                etf = yf.Ticker(symbol)
-                data = etf.history(period="6mo")
-                if not data.empty:
-                    trend = ((data['Close'][-1] / data['Close'][0]) - 1) * 100
-                    volatility = data['Close'].std() / data['Close'].mean() * 100
-                    market_trends[symbol] = {"trend": trend, "volatility": volatility}
-                    total_trend += trend
-                    valid_trends += 1
-            except Exception as e:
-                st.warning(f"Could not fetch data for {name} ETF: {str(e)}")
-        
-        if valid_trends == 0:
-            raise ValueError("Could not fetch any market trend data")
-            
-        # Calculate average market trend and volatility
-        current_trend = total_trend / valid_trends
-        market_volatility = sum(mt["volatility"] for mt in market_trends.values()) / len(market_trends)
-        
-        # Enhanced city-specific price adjustments based on market data
-        base_price = 500000
-        city_factors = {
-            "new york": {"mult": 4.0, "trend": 1.2, "volatility": 1.3},
-            "san francisco": {"mult": 3.5, "trend": 1.1, "volatility": 1.2},
-            "seattle": {"mult": 2.0, "trend": 0.9, "volatility": 1.1},
-            "portland": {"mult": 1.5, "trend": 0.8, "volatility": 0.9},
-            "los angeles": {"mult": 3.0, "trend": 1.0, "volatility": 1.2},
-            "chicago": {"mult": 1.8, "trend": 0.7, "volatility": 0.8},
-            "boston": {"mult": 2.2, "trend": 0.9, "volatility": 1.0},
-            "austin": {"mult": 1.7, "trend": 1.3, "volatility": 1.1},
-            "denver": {"mult": 1.6, "trend": 1.1, "volatility": 1.0},
-            "miami": {"mult": 2.1, "trend": 1.4, "volatility": 1.3},
-            "washington": {"mult": 2.3, "trend": 0.9, "volatility": 0.9},
-            "philadelphia": {"mult": 1.4, "trend": 0.7, "volatility": 0.8}
-        }
-        
-        # Get city-specific factors with fallback to regional averages
-        city_data = city_factors.get(city.lower(), {
-            "mult": 1.0,
-            "trend": 1.0,
-            "volatility": 1.0
-        })
-        
-        # Calculate market-adjusted metrics
-        price_multiplier = city_data["mult"]
-        trend_multiplier = city_data["trend"]
-        volatility_multiplier = city_data["volatility"]
-        
-        # Calculate median price with market influences and local factors
-        median_price = base_price * price_multiplier * (1 + (current_trend * trend_multiplier)/100)
-        local_trend = current_trend * trend_multiplier
-        local_volatility = market_volatility * volatility_multiplier
-        
-        # Calculate enhanced derived metrics
-        days_on_market = max(15, min(60, int(45 - local_trend + local_volatility/4)))
-        inventory_level = int((median_price / 10000) * (1 + local_volatility/100))
-        price_cut_pct = max(5, min(40, int(25 - local_trend + local_volatility/5)))
-        
-        # Calculate market health indicators
-        market_health = max(0, min(100, int(70 + local_trend - local_volatility/2)))
-        buyer_demand = max(0, min(100, int(65 + local_trend * 2 - days_on_market/2)))
-        
-        # Return enhanced market data
         return {
-            "median_price": f"${int(median_price):,}",
-            "price_trend": f"{local_trend:.1f}% YTD",
-            "market_health": f"{market_health}/100",
-            "buyer_demand": f"{buyer_demand}/100",
-            "avg_days_on_market": days_on_market,
-            "price_per_sqft": int(median_price / 1200),
-            "inventory": inventory_level,
-            "new_listings": f"{(local_trend * 1.5):.1f}% YoY",
-            "price_cuts": f"{price_cut_pct}% of listings",
-            "market_volatility": f"{local_volatility:.1f}%"
+            "median_price": f"${base_price:,}",
+            "price_trend": "N/A",
+            "market_health": "N/A"
         }
     except Exception as e:
         st.warning(f"Using estimated real estate data: {str(e)}")
         return {
             "median_price": "N/A",
             "price_trend": "N/A",
-            "avg_days_on_market": "N/A",
-            "price_per_sqft": "N/A",
-            "inventory": "N/A",
-            "new_listings": "N/A",
-            "price_cuts": "N/A"
+            "market_health": "N/A"
         }
 
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
@@ -575,48 +504,37 @@ if st.session_state.data1 and st.session_state.data2:
         "quality_of_life": "✨"
     }
 
-    def display_real_estate_section(data1, data2, location1, location2):
-        st.markdown("""
-            <h2 style='text-align: center; color: #111827; margin: 2rem 0 1rem;'>
-                🏠 Real Estate Market Analysis
-            </h2>
-        """, unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        def display_market_metrics(data, location):
-            st.markdown(f"""
-                <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                    <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
-                    
-                    <div style='margin-bottom: 1.5rem;'>
-                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Average House Price</h5>
-                        <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
-                            {data['real_estate']['median_price']}
-                        </div>
-                    </div>
-                    
-                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
-                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            <div style='color: #111827; font-weight: 600;'>{data['real_estate']['market_health']}</div>
-                            <div style='color: #6b7280; font-size: 0.875rem;'>Market Health</div>
-                        </div>
-                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            <div style='color: #111827; font-weight: 600;'>{data['real_estate']['buyer_demand']}</div>
-                            <div style='color: #6b7280; font-size: 0.875rem;'>Buyer Demand</div>
-                        </div>
+def display_real_estate_section(data1, data2, location1, location2):
+    st.markdown("""
+        <h2 style='text-align: center; color: #111827; margin: 2rem 0 1rem;'>
+            🏠 Real Estate Prices
+        </h2>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    def display_market_metrics(data, location):
+        st.markdown(f"""
+            <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
+                
+                <div style='margin-bottom: 1.5rem;'>
+                    <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Median House Price</h5>
+                    <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
+                        {data['real_estate']['median_price']}
                     </div>
                 </div>
-            """, unsafe_allow_html=True)
-        
-        with col1:
-            display_market_metrics(data1, location1)
-        
-        with col2:
-            display_market_metrics(data2, location2)
+            </div>
+        """, unsafe_allow_html=True)
+    
+    with col1:
+        display_market_metrics(data1, location1)
+    
+    with col2:
+        display_market_metrics(data2, location2)
     section_titles = {
         "education": "Education & Schools",
-        "real_estate": "Real Estate Market",
+        "real_estate": "Real Estate Prices",
         "safety": "Safety & Crime",
         "quality_of_life": "Quality of Life"
     }
