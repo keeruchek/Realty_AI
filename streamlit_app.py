@@ -183,6 +183,27 @@ st.markdown("""
     .stMarkdown {
         padding: 0.5rem 0;
     }
+    .metrics-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .metric-item {
+        background-color: #f8fafc;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #e5e7eb;
+    }
+    .metric-title {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+    .metric-value {
+        color: #111827;
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -337,23 +358,66 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
             }
         
         # Construct and log the API URL
-        url = f"{base_url}?key={CENSUS_API_KEY}&get={','.join(variables)}&for=place&in=state:{state_code}"
+        url = f"{base_url}?key={CENSUS_API_KEY}&get={','.join(variables)}&for=place:*&in=state:{state_code}"
         st.info(f"Requesting Census data from: {url}")
         
-        # Make API request with error handling
-        response = requests.get(url)
-        st.info(f"Census API Response Status: {response.status_code}")
+        # Add note about place identifier
+        st.info("Note: Using 'place:*' to fetch all places in the state for matching.")
         
-        if response.status_code != 200:
-            error_msg = f"Census API error (Status {response.status_code})"
-            try:
-                error_details = response.json()
-                error_msg += f": {error_details.get('message', 'No details available')}"
-            except:
-                error_msg += f": {response.text[:200]}"
-            st.error(error_msg)
+        # Log the variables being requested
+        st.info(f"""Requesting Census variables:
+            - B25077_001E: Median home value
+            - B25002_001E: Total housing units
+            - B25002_002E: Occupied housing units
+            - B25064_001E: Median gross rent
+            - B25003_002E: Owner occupied units
+        """)
+        
+        # Make API request with detailed error handling and logging
+        try:
+            st.info("Making request to Census API...")
+            response = requests.get(url, timeout=30)
+            st.info(f"Census API Response Status: {response.status_code}")
+            
+            # Log response headers for debugging
+            st.info("Response Headers:")
+            for key, value in response.headers.items():
+                st.info(f"{key}: {value}")
+            
+            if response.status_code != 200:
+                error_msg = f"Census API error (Status {response.status_code})"
+                try:
+                    error_details = response.json()
+                    error_msg += f": {error_details.get('message', 'No details available')}"
+                except:
+                    error_msg += f": {response.text[:200]}"
+                st.error(error_msg)
+                st.error("Full response text:")
+                st.code(response.text)
+                return {
+                    "median_price": "N/A (API Error)",
+                    "total_units": "N/A",
+                    "occupancy_rate": "N/A",
+                    "market_health": "N/A",
+                    "median_rent": "N/A"
+                }
+            
+            # Log successful response
+            st.success("Successfully received response from Census API")
+            
+        except requests.exceptions.Timeout:
+            st.error("Census API request timed out after 30 seconds")
             return {
-                "median_price": "N/A (API Error)",
+                "median_price": "N/A (Timeout)",
+                "total_units": "N/A",
+                "occupancy_rate": "N/A",
+                "market_health": "N/A",
+                "median_rent": "N/A"
+            }
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error making Census API request: {str(e)}")
+            return {
+                "median_price": "N/A (Request Error)",
                 "total_units": "N/A",
                 "occupancy_rate": "N/A",
                 "market_health": "N/A",
@@ -378,35 +442,52 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
                 place_name = row[headers.index("NAME")]
                 st.write(f"- {place_name}")
             
-            # Try to find the city with flexible matching
-            best_match = None
-            best_match_score = 0
-            
+            # Try to find exact city match first
+            exact_match = None
             for row in data[1:]:
                 place_name = row[headers.index("NAME")].lower()
-                
-                # Calculate match score
-                score = 0
-                if city_clean in place_name:
-                    score += 1
-                if state_clean.lower() in place_name:
-                    score += 1
-                if f"{city_clean} city" in place_name:
-                    score += 1
-                
-                # Update best match if this is better
-                if score > best_match_score:
-                    best_match = row
-                    best_match_score = score
-                    st.info(f"Found potential match: {row[headers.index('NAME')]} (score: {score})")
+                if f"{city_clean} city" in place_name and state_clean.lower() in place_name:
+                    exact_match = row
+                    st.success(f"Found exact match: {row[headers.index('NAME')]}")
+                    break
             
-            # Use the best match if it's good enough
-            if best_match_score >= 2:
-                values = best_match
-                st.success(f"Using best match: {best_match[headers.index('NAME')]}")
+            # If no exact match, try flexible matching
+            if not exact_match:
+                best_match = None
+                best_match_score = 0
+                
+                for row in data[1:]:
+                    place_name = row[headers.index("NAME")].lower()
+                    
+                    # Calculate match score with more precise matching
+                    score = 0
+                    if city_clean == place_name.split(',')[0].strip().replace(' city', ''):
+                        score += 3  # Exact city name match
+                    elif city_clean in place_name:
+                        score += 1  # Partial city name match
+                    
+                    if state_clean.lower() in place_name:
+                        score += 2  # State match
+                    
+                    # Prefer "city" designation
+                    if "city" in place_name:
+                        score += 1
+                    
+                    # Update best match if this is better
+                    if score > best_match_score:
+                        best_match = row
+                        best_match_score = score
+                        st.info(f"Found potential match: {row[headers.index('NAME')]} (score: {score})")
+                
+                # Use the best match if it's good enough
+                if best_match_score >= 3:
+                    values = best_match
+                    st.success(f"Using best match: {best_match[headers.index('NAME')]}")
+                else:
+                    st.warning(f"No good match found for {city}, {state}.")
+                    values = None
             else:
-                st.warning(f"No good match found for {city}, {state}. Using closest match if available.")
-                values = best_match if best_match else None
+                values = exact_match
                     
             if not values:
                 st.error(f"City not found in Census data: {city}")
@@ -695,44 +776,47 @@ def display_real_estate_section(data1, data2, location1, location2):
     col1, col2 = st.columns(2)
     
     def display_market_metrics(data, location):
-        st.markdown(f"""
-            <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
-                
-                <div style='margin-bottom: 1.5rem;'>
-                    <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Median House Price</h5>
-                    <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
-                        {data['real_estate']['median_price']}
+        try:
+            st.markdown(f"""
+                <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                    <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
+                    
+                    <div style='margin-bottom: 1.5rem;'>
+                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Median House Price</h5>
+                        <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
+                            {data.get('real_estate', {}).get('median_price', 'N/A')}
+                        </div>
+                    </div>
+                    
+                    <div style='margin-bottom: 1.5rem;'>
+                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>🏢 Median Rent</h5>
+                        <div style='color: #111827; font-size: 1.25rem; font-weight: 600;'>
+                            {data.get('real_estate', {}).get('median_rent', 'N/A')}
+                        </div>
+                    </div>
+                    
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
+                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('total_units', 'N/A')}</div>
+                            <div style='color: #6b7280; font-size: 0.875rem;'>Total Housing Units</div>
+                        </div>
+                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('occupancy_rate', 'N/A')}</div>
+                            <div style='color: #6b7280; font-size: 0.875rem;'>Occupancy Rate</div>
+                        </div>
+                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('ownership_rate', 'N/A')}</div>
+                            <div style='color: #6b7280; font-size: 0.875rem;'>Ownership Rate</div>
+                        </div>
+                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('market_health', 'N/A')}</div>
+                            <div style='color: #6b7280; font-size: 0.875rem;'>Market Health</div>
+                        </div>
                     </div>
                 </div>
-                
-                <div style='margin-bottom: 1.5rem;'>
-                    <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>🏢 Median Rent</h5>
-                    <div style='color: #111827; font-size: 1.25rem; font-weight: 600;'>
-                        {data['real_estate']['median_rent']}
-                    </div>
-                </div>
-                
-                <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
-                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['total_units']}</div>
-                        <div style='color: #6b7280; font-size: 0.875rem;'>Total Housing Units</div>
-                    </div>
-                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['occupancy_rate']}</div>
-                        <div style='color: #6b7280; font-size: 0.875rem;'>Occupancy Rate</div>
-                    </div>
-                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['ownership_rate']}</div>
-                        <div style='color: #6b7280; font-size: 0.875rem;'>Ownership Rate</div>
-                    </div>
-                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['market_health']}</div>
-                        <div style='color: #6b7280; font-size: 0.875rem;'>Market Health</div>
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Error displaying market metrics: {str(e)}")
     
     with col1:
         display_market_metrics(data1, location1)
@@ -751,70 +835,100 @@ section_icons = {
 
 # Display sections
 if st.session_state.data1 and st.session_state.data2:
-    section_titles = {
-        "education": "Education & Schools",
-        "real_estate": "Real Estate Prices",
-        "safety": "Safety & Crime",
-        "quality_of_life": "Quality of Life"
-    }
-    
-    # Display timestamp
-    st.markdown(f"""
-        <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
-            Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
-        </p>
-    """, unsafe_allow_html=True)
-    
-    for section in sections:
-        if section == "real_estate":
-            display_real_estate_section(st.session_state.data1, st.session_state.data2, location1, location2)
-        else:
-            st.markdown(
-                f"<h2 class='section-title'>{section_icons[section]} {section_titles[section]}</h2>",
-                unsafe_allow_html=True
-            )
-            
-            # Create three columns for better layout
-            col1, col_spacer, col2 = st.columns([10, 1, 10])
-            
-            with col1:
-                st.markdown(
-                    f"""
-                    <div class='comparison-card'>
-                        <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                for key, value in st.session_state.data1[section].items():
-                    st.markdown(
-                        f"""
-                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
-                        <div class='metric-value'>{value}</div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-            
-            with col2:
-                st.markdown(
-                    f"""
-                    <div class='comparison-card'>
-                        <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                for key, value in st.session_state.data2[section].items():
-                    st.markdown(
-                        f"""
-                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
-                        <div class='metric-value'>{value}</div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+    try:
+        # Display timestamp
+        st.markdown(f"""
+            <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
+                Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
+            </p>
+        """, unsafe_allow_html=True)
+
+        # Define sections and their display order
+        sections_order = [
+            ("education", "Education & Schools", "📚"),
+            ("real_estate", "Real Estate Market", "🏠"),
+            ("safety", "Safety & Crime", "🚓"),
+            ("quality_of_life", "Quality of Life", "✨")
+        ]
         
-        if section != sections[-1]:
-            st.markdown("<br>", unsafe_allow_html=True)
+        # Display sections in order
+        for section, title, icon in sections_order:
+            try:
+                st.markdown(
+                    f"<h2 class='section-title'>{icon} {title}</h2>",
+                    unsafe_allow_html=True
+                )
+                
+                if section == "real_estate":
+                    display_real_estate_section(st.session_state.data1, st.session_state.data2, location1, location2)
+                else:
+                    # Create three columns for better layout
+                    col1, col_spacer, col2 = st.columns([10, 1, 10])
+                    
+                    # Display data for location 1
+                    with col1:
+                        st.markdown(
+                            f"""
+                            <div class='comparison-card'>
+                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
+                                <div class='metrics-container'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        if section in st.session_state.data1 and st.session_state.data1[section]:
+                            for key, value in st.session_state.data1[section].items():
+                                st.markdown(
+                                    f"""
+                                    <div class='metric-item'>
+                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                                        <div class='metric-value'>{value}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.warning(f"No {section} data available for {location1}")
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
+                    
+                    # Display data for location 2
+                    with col2:
+                        st.markdown(
+                            f"""
+                            <div class='comparison-card'>
+                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
+                                <div class='metrics-container'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        if section in st.session_state.data2 and st.session_state.data2[section]:
+                            for key, value in st.session_state.data2[section].items():
+                                st.markdown(
+                                    f"""
+                                    <div class='metric-item'>
+                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                                        <div class='metric-value'>{value}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.warning(f"No {section} data available for {location2}")
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
+                
+                # Add spacing between sections
+                if section != "quality_of_life":
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    
+            except Exception as e:
+                st.error(f"Error displaying {section} data: {str(e)}")
+                continue
+                
+    except Exception as e:
+        st.error(f"Error displaying comparison sections: {str(e)}")
 
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
