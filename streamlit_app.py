@@ -318,20 +318,20 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
     try:
         st.info(f"Fetching real estate data for {city}, {state}...")
         
-        # Census API configuration
+        # Census API configuration with updated endpoint and variables
         CENSUS_API_KEY = os.getenv('CENSUS_API_KEY', '53bbd3cc45c36cc6cd94c6359e7d34d7c4138dc8')  # Demo key for testing
-        base_url = "https://api.census.gov/data/2021/acs/acs5"
+        base_url = "https://api.census.gov/data/2021/acs/acs5/subject"
         
         st.info(f"Fetching Census data for {city}, {state}...")
         
-        # Define Census variables and state FIPS codes
+        # Define Census variables with Subject tables for better data
         variables = [
             "NAME",                 # Place name
-            "B25077_001E",         # Median home value
-            "B25002_001E",         # Total housing units
-            "B25002_002E",         # Occupied housing units
-            "B25064_001E",         # Median gross rent
-            "B25003_002E"          # Owner occupied units
+            "S2506_C01_001E",      # Total owner-occupied housing units
+            "S2506_C01_039E",      # Median value (dollars)
+            "S2502_C01_001E",      # Total occupied housing units
+            "S2502_C01_002E",      # Owner occupied
+            "S2503_C01_028E"       # Median gross rent
         ]
         
         # Get state FIPS code (2-digit state codes)
@@ -426,8 +426,27 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
         
         try:
             data = response.json()
+            if not data or len(data) < 2:
+                st.error("Census API returned empty or invalid response")
+                return {
+                    "median_price": "N/A (Invalid Response)",
+                    "total_units": "N/A",
+                    "occupancy_rate": "N/A",
+                    "market_health": "N/A",
+                    "median_rent": "N/A"
+                }
+            
             st.info(f"Census API Response: {data[:2]}")  # Log first two rows for debugging
             headers = data[0]
+            if not all(var in headers for var in ["S2506_C01_039E", "S2502_C01_001E", "S2502_C01_002E", "S2503_C01_028E"]):
+                st.error("Census API response missing required variables")
+                return {
+                    "median_price": "N/A (Missing Data)",
+                    "total_units": "N/A",
+                    "occupancy_rate": "N/A",
+                    "market_health": "N/A",
+                    "median_rent": "N/A"
+                }
             values = None
             
             # Enhanced city name matching with detailed logging
@@ -510,20 +529,30 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
             
         # Process the data with new ACS5 Subject variables and enhanced error handling
         try:
-            # Helper function for safe integer conversion
+            # Helper function for safe integer conversion with better error handling
             def safe_int(value, default=0):
                 try:
-                    return int(value) if value not in [None, '', '-'] else default
-                except ValueError:
-                    st.warning(f"Could not convert value '{value}' to integer")
+                    if value in [None, '', '-', '*']:
+                        st.warning(f"Value is missing or invalid: {value}")
+                        return default
+                    cleaned_value = value.replace(',', '')  # Remove commas
+                    return int(float(cleaned_value))  # Handle decimal values
+                except (ValueError, AttributeError) as e:
+                    st.warning(f"Could not convert value '{value}' to integer: {str(e)}")
                     return default
 
-            # Extract and validate metrics
-            median_value = safe_int(values[headers.index("B25077_001E")])
-            total_units = safe_int(values[headers.index("B25002_001E")])
-            occupied_units = safe_int(values[headers.index("B25002_002E")])
-            median_rent = safe_int(values[headers.index("B25064_001E")])
-            owner_occupied = safe_int(values[headers.index("B25003_002E")])
+            # Extract and validate metrics with updated variable names
+            try:
+                median_value = safe_int(values[headers.index("S2506_C01_039E")])
+                total_units = safe_int(values[headers.index("S2502_C01_001E")])
+                occupied_units = safe_int(values[headers.index("S2502_C01_001E")])  # Same as total since these are occupied units
+                median_rent = safe_int(values[headers.index("S2503_C01_028E")])
+                owner_occupied = safe_int(values[headers.index("S2502_C01_002E")])
+                
+                st.info("Successfully extracted all required metrics")
+            except IndexError as e:
+                st.error(f"Missing required Census variable: {str(e)}")
+                raise
 
             st.info(f"""Raw values from Census API:
                 - Median Value: {values[headers.index("B25077_001E")]}
@@ -556,14 +585,18 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
 
             st.success(f"Successfully processed data for {values[headers.index('NAME')]}")
             
-            return {
-                "median_price": f"${median_value:,}" if median_value > 0 else "N/A (No Data)",
-                "median_rent": f"${median_rent:,}/month" if median_rent > 0 else "N/A (No Data)",
-                "total_units": f"{total_units:,}" if total_units > 0 else "N/A",
-                "occupancy_rate": f"{occupancy_rate}%" if total_units > 0 else "N/A",
-                "ownership_rate": f"{ownership_rate}%" if total_units > 0 else "N/A",
-                "market_health": f"{market_health}/100" if total_units > 0 else "N/A"
+            # Format values with validation
+            formatted_data = {
+                "median_price": f"${median_value:,}" if median_value and median_value > 0 else "N/A (No Data)",
+                "median_rent": f"${median_rent:,}/month" if median_rent and median_rent > 0 else "N/A (No Data)",
+                "total_units": f"{total_units:,}" if total_units and total_units > 0 else "N/A",
+                "occupancy_rate": f"{occupancy_rate}%" if occupancy_rate and occupancy_rate > 0 else "N/A",
+                "ownership_rate": f"{ownership_rate}%" if ownership_rate and ownership_rate > 0 else "N/A",
+                "market_health": f"{market_health}/100" if market_health and market_health > 0 else "N/A"
             }
+            
+            st.success("Successfully formatted all metrics")
+            return formatted_data
         except (ValueError, IndexError) as e:
             st.error(f"Error processing Census data: {str(e)}")
             return {
