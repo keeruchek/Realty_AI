@@ -488,7 +488,7 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
                     values = None
             else:
                 values = exact_match
-                    
+                     
             if not values:
                 st.error(f"City not found in Census data: {city}")
                 return {
