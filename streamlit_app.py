@@ -4,6 +4,7 @@ import requests
 from datetime import datetime
 import plotly.express as px
 from typing import Dict, Any
+import os
 
 # Page configuration
 st.set_page_config(
@@ -302,7 +303,7 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
         
         st.info(f"Fetching Census data for {city}, {state}...")
         
-        # Variables to fetch from ACS5 detailed tables
+        # Define Census variables and state FIPS codes
         variables = [
             "NAME",                 # Place name
             "B25077_001E",         # Median home value
@@ -334,19 +335,9 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
                 "market_health": "N/A",
                 "median_rent": "N/A"
             }
-            
-        # Variables to fetch from ACS5 detailed tables
-        variables = [
-            "NAME",                 # Place name
-            "B25077_001E",         # Median home value
-            "B25002_001E",         # Total housing units
-            "B25002_002E",         # Occupied housing units
-            "B25064_001E",         # Median gross rent
-            "B25003_002E"          # Owner occupied units
-        ]
         
         # Construct and log the API URL
-        url = f"{base_url}?key={CENSUS_API_KEY}&get={','.join(variables)}&for=place:*&in=state:{state_code}"
+        url = f"{base_url}?key={CENSUS_API_KEY}&get={','.join(variables)}&for=place&in=state:{state_code}"
         st.info(f"Requesting Census data from: {url}")
         
         # Make API request with error handling
@@ -374,53 +365,62 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
             st.info(f"Census API Response: {data[:2]}")  # Log first two rows for debugging
             headers = data[0]
             values = None
-        
-        # Enhanced city name matching with detailed logging
-        city_clean = city.lower().strip()
-        state_clean = state.upper().strip()
-        
-        st.info(f"Searching for {city_clean}, {state_clean} in Census data...")
-        
-        # Log the first few places in the response for debugging
-        st.write("Available places (first 5):")
-        for i, row in enumerate(data[1:6]):
-            place_name = row[headers.index("NAME")]
-            st.write(f"- {place_name}")
-        
-        # Try to find the city with flexible matching
-        best_match = None
-        best_match_score = 0
-        
-        for row in data[1:]:
-            place_name = row[headers.index("NAME")].lower()
             
-            # Calculate match score
-            score = 0
-            if city_clean in place_name:
-                score += 1
-            if state_clean.lower() in place_name:
-                score += 1
-            if f"{city_clean} city" in place_name:
-                score += 1
+            # Enhanced city name matching with detailed logging
+            city_clean = city.lower().strip()
+            state_clean = state.upper().strip()
             
-            # Update best match if this is better
-            if score > best_match_score:
-                best_match = row
-                best_match_score = score
-                st.info(f"Found potential match: {row[headers.index('NAME')]} (score: {score})")
-        
-        # Use the best match if it's good enough
-        if best_match_score >= 2:
-            values = best_match
-            st.success(f"Using best match: {best_match[headers.index('NAME')]}")
-        else:
-            st.warning(f"No good match found for {city}, {state}. Using closest match if available.")
-            values = best_match if best_match else None
+            st.info(f"Searching for {city_clean}, {state_clean} in Census data...")
+            
+            # Log the first few places in the response for debugging
+            st.write("Available places (first 5):")
+            for i, row in enumerate(data[1:6]):
+                place_name = row[headers.index("NAME")]
+                st.write(f"- {place_name}")
+            
+            # Try to find the city with flexible matching
+            best_match = None
+            best_match_score = 0
+            
+            for row in data[1:]:
+                place_name = row[headers.index("NAME")].lower()
                 
-        if not values:
-            st.error(f"City not found in Census data: {city}")
+                # Calculate match score
+                score = 0
+                if city_clean in place_name:
+                    score += 1
+                if state_clean.lower() in place_name:
+                    score += 1
+                if f"{city_clean} city" in place_name:
+                    score += 1
+                
+                # Update best match if this is better
+                if score > best_match_score:
+                    best_match = row
+                    best_match_score = score
+                    st.info(f"Found potential match: {row[headers.index('NAME')]} (score: {score})")
+            
+            # Use the best match if it's good enough
+            if best_match_score >= 2:
+                values = best_match
+                st.success(f"Using best match: {best_match[headers.index('NAME')]}")
+            else:
+                st.warning(f"No good match found for {city}, {state}. Using closest match if available.")
+                values = best_match if best_match else None
+                    
+            if not values:
+                st.error(f"City not found in Census data: {city}")
+                return {
+                    "median_price": "N/A (City Not Found)",
+                    "total_units": "N/A",
+                    "occupancy_rate": "N/A",
+                    "market_health": "N/A",
+                    "median_rent": "N/A"
+                }
+        except Exception as e:
+            st.error(f"Error parsing Census API response: {str(e)}")
             return {
-                "median_price": "N/A (City Not Found)",
+                "median_price": "N/A (Parse Error)",
                 "total_units": "N/A",
                 "occupancy_rate": "N/A",
                 "market_health": "N/A",
