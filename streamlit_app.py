@@ -515,25 +515,53 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Add prominent comparison button
-st.markdown("""
-    <div style='text-align: center; margin: 40px 0;'>
-        <div style='background-color: #f8fafc; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-            <h3 style='color: #111827; margin-bottom: 10px;'>Ready to Compare?</h3>
-            <p style='color: #4b5563; margin-bottom: 20px;'>Click below to see the comparison</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+# Make the button more prominent
+st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
-if st.button("🔄 Compare Now", key="compare_button", use_container_width=True):
+# Create a container for the loading animation and button
+loading_container = st.empty()
+
+# Add the comparison button with a key
+if st.button("🔄 Compare Locations Now", 
+            key="compare_button",
+            help="Click to load comparison data", 
+            use_container_width=True,
+            type="primary"):  # Make it primary to stand out
     try:
-        # Show loading animation and get data
-        with st.spinner('Loading comparison data...'):
-            st.session_state.data1 = get_location_data(location1)
-            st.session_state.data2 = get_location_data(location2)
+        # Show loading animation with progress
+        with loading_container.container():
+            st.markdown("""
+                <div style='text-align: center; padding: 2rem;'>
+                    <div style='display: inline-block; padding: 1rem 2rem; background-color: #e0f2fe; border-radius: 0.5rem; margin-bottom: 1rem;'>
+                        <p style='color: #0369a1; font-size: 1.1rem; margin-bottom: 0.5rem;'>🔄 Loading comparison data...</p>
+                        <div style='color: #0c4a6e; font-size: 0.9rem;'>This may take a few moments</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
             
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Get first location data
+            status_text.text("Loading data for " + location1 + "...")
+            progress_bar.progress(25)
+            st.session_state.data1 = get_location_data(location1)
+            progress_bar.progress(50)
+            
+            # Get second location data
+            status_text.text("Loading data for " + location2 + "...")
+            progress_bar.progress(75)
+            st.session_state.data2 = get_location_data(location2)
+            progress_bar.progress(100)
+            status_text.text("Data loaded successfully!")
+            
+        # Clear the loading animation
+        loading_container.empty()
+        
     except Exception as e:
-        st.error(f"Error comparing locations: {str(e)}")
+        st.error(f"An error occurred while comparing locations: {str(e)}")
+        st.session_state.data1 = None
+        st.session_state.data2 = None
 
 # Display comparison if data exists in session state
 if st.session_state.data1 and st.session_state.data2:
@@ -615,38 +643,100 @@ section_icons = {
 
 # Display sections
 if st.session_state.data1 and st.session_state.data2:
-    col1, col2 = st.columns(2)
-    
-    def display_data(col, location, data):
-        with col:
-            st.markdown(f"""
-                <div style='background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-                    <h3 style='color: #111827; margin-bottom: 20px;'>{location}</h3>
+    try:
+        # Display timestamp
+        st.markdown(f"""
+            <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
+                Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
+            </p>
+        """, unsafe_allow_html=True)
+
+        # Define sections and their display order
+        sections_order = [
+            ("education", "Education & Schools", "📚"),
+            ("real_estate", "Real Estate Market", "🏠"),
+            ("safety", "Safety & Crime", "🚓"),
+            ("quality_of_life", "Quality of Life", "✨")
+        ]
+        
+        # Display sections in order
+        for section, title, icon in sections_order:
+            try:
+                st.markdown(
+                    f"<h2 class='section-title'>{icon} {title}</h2>",
+                    unsafe_allow_html=True
+                )
+                
+                if section == "real_estate":
+                    display_real_estate_section(st.session_state.data1, st.session_state.data2, location1, location2)
+                else:
+                    # Create three columns for better layout
+                    col1, col_spacer, col2 = st.columns([10, 1, 10])
                     
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Median House Price</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['median_price']}</div>
-                    </div>
+                    # Display data for location 1
+                    with col1:
+                        st.markdown(
+                            f"""
+                            <div class='comparison-card'>
+                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
+                                <div class='metrics-container'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        if section in st.session_state.data1 and st.session_state.data1[section]:
+                            for key, value in st.session_state.data1[section].items():
+                                st.markdown(
+                                    f"""
+                                    <div class='metric-item'>
+                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                                        <div class='metric-value'>{value}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.warning(f"No {section} data available for {location1}")
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                     
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Median Rent</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['median_rent']}</div>
-                    </div>
+                    # Display data for location 2
+                    with col2:
+                        st.markdown(
+                            f"""
+                            <div class='comparison-card'>
+                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
+                                <div class='metrics-container'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        if section in st.session_state.data2 and st.session_state.data2[section]:
+                            for key, value in st.session_state.data2[section].items():
+                                st.markdown(
+                                    f"""
+                                    <div class='metric-item'>
+                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                                        <div class='metric-value'>{value}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.warning(f"No {section} data available for {location2}")
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
+                
+                # Add spacing between sections
+                if section != "quality_of_life":
+                    st.markdown("<br>", unsafe_allow_html=True)
                     
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Total Units</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['total_units']}</div>
-                    </div>
-                    
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Market Health</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['market_health']}</div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-    
-    display_data(col1, location1, st.session_state.data1)
-    display_data(col2, location2, st.session_state.data2)
+            except Exception as e:
+                st.error(f"Error displaying {section} data: {str(e)}")
+                continue
+                
+    except Exception as e:
+        st.error(f"Error displaying comparison sections: {str(e)}")
 
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
