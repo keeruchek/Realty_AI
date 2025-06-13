@@ -167,112 +167,149 @@ def get_location_data(location: str) -> Dict[Any, Any]:
         }
     }
 
+# Initialize data in session state
+if 'data1' not in st.session_state:
+    st.session_state.data1 = None
+if 'data2' not in st.session_state:
+    st.session_state.data2 = None
+
 # Compare button with improved styling
 if st.button("Compare Locations", help="Click to compare the two locations"):
     with st.spinner("Gathering data..."):
         try:
-            # Get data for both locations
-            data1 = get_location_data(location1)
-            data2 = get_location_data(location2)
-            
-            # Display comparison sections
-            sections = ["education", "real_estate", "demographics", "safety", "quality_of_life"]
-            section_icons = {
-                "education": "📚", 
-                "real_estate": "🏠",
-                "demographics": "👥", 
-                "safety": "🚓",
-                "quality_of_life": "✨"
-            }
-            section_titles = {
-                "education": "Education & Schools",
-                "real_estate": "Real Estate Market",
-                "demographics": "Demographics & Community",
-                "safety": "Safety & Crime",
-                "quality_of_life": "Quality of Life"
-            }
-            
-            # Display timestamp
-            st.markdown(f"""
-                <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
-                    Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
-                </p>
-            """, unsafe_allow_html=True)
-            
-            for section in sections:
-                st.markdown(
-                    f"<h2 class='section-title'>{section_icons[section]} {section_titles[section]}</h2>",
-                    unsafe_allow_html=True
-                )
-                
-                # Create three columns for better layout
-                col1, col_spacer, col2 = st.columns([10, 1, 10])
-                
-                with col1:
-                    st.markdown(
-                        f"""
-                        <div class='comparison-card'>
-                            <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    for key, value in data1[section].items():
-                        st.markdown(
-                            f"""
-                            <div class='metric-title'>{key.replace('_', ' ').title()}</div>
-                            <div class='metric-value'>{value}</div>
-                            """,
-                            unsafe_allow_html=True
-                        )
-                
-                with col2:
-                    st.markdown(
-                        f"""
-                        <div class='comparison-card'>
-                            <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    for key, value in data2[section].items():
-                        st.markdown(
-                            f"""
-                            <div class='metric-title'>{key.replace('_', ' ').title()}</div>
-                            <div class='metric-value'>{value}</div>
-                            """,
-                            unsafe_allow_html=True
-                        )
-                
-                if section != sections[-1]:
-                    st.markdown("<br>", unsafe_allow_html=True)
-
-            # Add chatbot interface in sidebar with improved styling
-            st.sidebar.markdown("""
-                <h2 style='color: #111827; margin-bottom: 1rem;'>🤖 AI Assistant</h2>
-            """, unsafe_allow_html=True)
-            
-            user_question = st.sidebar.text_input(
-                "Ask me anything about these locations:",
-                placeholder="E.g., Which location has better schools?"
-            )
-            
-            if user_question:
-                response = f"Based on the comparison between {location1} and {location2}, "
-                if "school" in user_question.lower():
-                    response += f"{location1 if data1['education']['avg_school_rating'] > data2['education']['avg_school_rating'] else location2} has higher-rated schools overall."
-                elif "safe" in user_question.lower() or "crime" in user_question.lower():
-                    response += f"{location1 if data1['safety']['safety_score'] > data2['safety']['safety_score'] else location2} has a higher safety score."
-                elif "cost" in user_question.lower() or "price" in user_question.lower():
-                    response += f"The median home price in {location1} is {data1['real_estate']['median_price']} compared to {data2['real_estate']['median_price']} in {location2}."
-                else:
-                    response += "both locations have their unique advantages. For specific details, please refer to the comparison above."
-                
-                st.sidebar.markdown(f"""
-                    <div style='background-color: #f3f4f6; padding: 1rem; border-radius: 0.5rem; margin-top: 1rem;'>
-                        <p style='color: #111827; margin: 0;'>{response}</p>
-                    </div>
-                """, unsafe_allow_html=True)
-
+            # Get data for both locations and store in session state
+            st.session_state.data1 = get_location_data(location1)
+            st.session_state.data2 = get_location_data(location2)
         except Exception as e:
             st.error(f"An error occurred while comparing locations: {str(e)}")
+            st.session_state.data1 = None
+            st.session_state.data2 = None
+
+# Display comparison if data exists in session state
+if st.session_state.data1 and st.session_state.data2:
+    # Display comparison sections
+    sections = ["education", "real_estate", "demographics", "safety", "quality_of_life"]
+    section_icons = {
+        "education": "📚", 
+        "real_estate": "🏠",
+        "demographics": "👥", 
+        "safety": "🚓",
+        "quality_of_life": "✨"
+    }
+    section_titles = {
+        "education": "Education & Schools",
+        "real_estate": "Real Estate Market",
+        "demographics": "Demographics & Community",
+        "safety": "Safety & Crime",
+        "quality_of_life": "Quality of Life"
+    }
+    
+    # Display timestamp
+    st.markdown(f"""
+        <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
+            Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
+        </p>
+    """, unsafe_allow_html=True)
+    
+    for section in sections:
+        st.markdown(
+            f"<h2 class='section-title'>{section_icons[section]} {section_titles[section]}</h2>",
+            unsafe_allow_html=True
+        )
+        
+        # Create three columns for better layout
+        col1, col_spacer, col2 = st.columns([10, 1, 10])
+        
+        with col1:
+            st.markdown(
+                f"""
+                <div class='comparison-card'>
+                    <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            for key, value in st.session_state.data1[section].items():
+                st.markdown(
+                    f"""
+                    <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                    <div class='metric-value'>{value}</div>
+                    """,
+                    unsafe_allow_html=True
+                )
+        
+        with col2:
+            st.markdown(
+                f"""
+                <div class='comparison-card'>
+                    <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            for key, value in st.session_state.data2[section].items():
+                st.markdown(
+                    f"""
+                    <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                    <div class='metric-value'>{value}</div>
+                    """,
+                    unsafe_allow_html=True
+                )
+        
+        if section != sections[-1]:
+            st.markdown("<br>", unsafe_allow_html=True)
+
+# Add chatbot interface in sidebar with improved styling
+st.sidebar.markdown("""
+    <h2 style='color: #111827; margin-bottom: 1rem;'>🤖 AI Assistant</h2>
+""", unsafe_allow_html=True)
+
+# Initialize chat history in session state
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+
+# Show different messages based on comparison state
+if not st.session_state.data1 or not st.session_state.data2:
+    st.sidebar.warning("⚠️ First step: Click the 'Compare Locations' button to load the data!")
+    st.sidebar.info("Once the comparison is loaded, you can ask questions here about schools, safety, prices, and more.")
+    user_question = st.sidebar.text_input(
+        "Ask me anything about these locations:",
+        placeholder="First, compare locations...",
+        key="user_input",
+        disabled=True
+    )
+else:
+    user_question = st.sidebar.text_input(
+        "Ask me anything about these locations:",
+        placeholder="E.g., Which location has better schools?",
+        key="user_input"
+    )
+
+# Add a submit button to prevent auto-refresh
+if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
+    if user_question:
+        response = f"Based on the comparison between {location1} and {location2}, "
+        if "school" in user_question.lower():
+            response += f"{location1 if st.session_state.data1['education']['avg_school_rating'] > st.session_state.data2['education']['avg_school_rating'] else location2} has higher-rated schools overall."
+        elif "safe" in user_question.lower() or "crime" in user_question.lower():
+            response += f"{location1 if st.session_state.data1['safety']['safety_score'] > st.session_state.data2['safety']['safety_score'] else location2} has a higher safety score."
+        elif "cost" in user_question.lower() or "price" in user_question.lower():
+            response += f"The median home price in {location1} is {st.session_state.data1['real_estate']['median_price']} compared to {st.session_state.data2['real_estate']['median_price']} in {location2}."
+        else:
+            response += "both locations have their unique advantages. For specific details, please refer to the comparison above."
+        
+        # Add to chat history
+        st.session_state.chat_history.append({"question": user_question, "answer": response})
+    elif user_question:
+        st.sidebar.error("⚠️ Please click 'Compare Locations' first to load the data!")
+
+# Display chat history
+if st.session_state.chat_history:
+    st.sidebar.markdown("### Previous Questions")
+    for chat in st.session_state.chat_history:
+        st.sidebar.markdown(f"""
+            <div style='background-color: #f8fafc; padding: 0.5rem; border-radius: 0.5rem; margin-bottom: 0.5rem;'>
+                <p style='color: #4b5563; font-size: 0.875rem; margin-bottom: 0.25rem;'><strong>Q:</strong> {chat['question']}</p>
+                <p style='color: #111827; margin: 0;'><strong>A:</strong> {chat['answer']}</p>
+            </div>
+        """, unsafe_allow_html=True)
