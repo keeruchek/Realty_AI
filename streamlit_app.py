@@ -131,16 +131,25 @@ st.markdown("""
     }
     .stButton>button {
         width: 100%;
-        background-color: #0f172a;
+        background-color: #2563eb;
         color: white;
-        padding: 0.75rem 1.5rem;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
         font-weight: 600;
-        border-radius: 0.5rem;
-        transition: all 0.2s;
+        border-radius: 0.75rem;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        transition: all 0.3s ease;
+        margin: 1rem 0;
     }
     .stButton>button:hover {
-        background-color: #1e293b;
-        transform: translateY(-1px);
+        background-color: #1d4ed8;
+        transform: translateY(-2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    .stButton>button:active {
+        transform: translateY(0);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     .comparison-card {
         background-color: white;
@@ -194,7 +203,6 @@ metrics_list = """
 <div style='display: flex; justify-content: center; gap: 2rem; margin-bottom: 2rem;'>
     <div>📚 Education & Schools</div>
     <div>🏠 Real Estate Market</div>
-    <div>👥 Demographics</div>
     <div>🚓 Safety & Crime</div>
     <div>✨ Quality of Life</div>
 </div>
@@ -218,7 +226,6 @@ with col2:
     )
 
 import yfinance as yf
-from census import Census
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 from bs4 import BeautifulSoup
@@ -230,12 +237,11 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# API Keys (with fallback to demo mode if not available)
-CENSUS_API_KEY = os.getenv('CENSUS_API_KEY')
+# API Key for air quality data
 WAQI_API_KEY = os.getenv('WAQI_API_KEY')
 
 # Check if we're in demo mode
-DEMO_MODE = not (CENSUS_API_KEY and WAQI_API_KEY)
+DEMO_MODE = not WAQI_API_KEY
 if DEMO_MODE:
     st.warning("""
         ⚠️ Running in demo mode with estimated data. 
@@ -245,7 +251,7 @@ if DEMO_MODE:
 
 def get_location_data(location: str) -> Dict[Any, Any]:
     """
-    Get real-time data for a location using various APIs
+    Get data for a location using APIs or demo data
     """
     try:
         # Parse city and state
@@ -262,11 +268,8 @@ def get_location_data(location: str) -> Dict[Any, Any]:
 
         lat, lon = location_data.latitude, location_data.longitude
 
-        # Get real estate data using Zillow-like API simulation
+        # Get real estate data
         real_estate_data = get_real_estate_data(city, state)
-        
-        # Get demographic data from Census API
-        census_data = get_census_data(city, state)
         
         # Get safety data from FBI UCR API simulation
         safety_data = get_safety_data(city, state)
@@ -274,11 +277,13 @@ def get_location_data(location: str) -> Dict[Any, Any]:
         # Get quality of life data
         quality_data = get_quality_data(lat, lon)
         
+        # Get education data with highest ranked school
+        education_data = get_education_data(city, state)
+        
         # Combine all data
         return {
-            "education": get_education_data(city, state),
+            "education": education_data,
             "real_estate": real_estate_data,
-            "demographics": census_data,
             "safety": safety_data,
             "quality_of_life": quality_data
         }
@@ -388,44 +393,6 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
             "price_cuts": "N/A"
         }
 
-def get_census_data(city: str, state: str) -> Dict[str, Any]:
-    """Get demographic data from Census API"""
-    try:
-        if CENSUS_API_KEY:
-            c = Census(CENSUS_API_KEY)
-            # Query Census API for real data (to be implemented)
-            raise NotImplementedError("Census API integration pending")
-        
-        # Use estimated data based on city characteristics
-        base_population = 350000
-        city_multipliers = {
-            "new york": 23.0, "los angeles": 10.0, "chicago": 7.0, 
-            "san francisco": 2.3, "seattle": 1.9, "portland": 1.6,
-            "boston": 1.8, "austin": 2.5, "denver": 1.9
-        }
-        multiplier = city_multipliers.get(city.lower(), 1.0)
-        population = int(base_population * multiplier)
-        return {
-            "population": f"{population:,}",
-            "population_growth": f"{(multiplier * 1.2):.1f}% annual",
-            "median_age": str(int(32 + (multiplier * 2))),
-            "median_income": f"${int(65000 * multiplier):,}",
-            "education_level": f"{int(40 + (multiplier * 5))}% college degree",
-            "employment_rate": f"{int(92 + (multiplier * 0.5))}%",
-            "diversity_index": f"{int(65 + (multiplier * 3))}/100"
-        }
-    except Exception as e:
-        st.warning(f"Using estimated census data: {str(e)}")
-        return {
-            "population": "N/A",
-            "population_growth": "N/A",
-            "median_age": "N/A",
-            "median_income": "N/A",
-            "education_level": "N/A",
-            "employment_rate": "N/A",
-            "diversity_index": "N/A"
-        }
-
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
     """Get safety data from FBI UCR and local sources"""
     try:
@@ -502,37 +469,38 @@ def get_quality_data(lat: float, lon: float) -> Dict[str, Any]:
         }
 
 def get_education_data(city: str, state: str) -> Dict[str, Any]:
-    """Get education data from Department of Education and other sources"""
+    """Get education data with highest ranked school in the district"""
     try:
-        # Simulate education API data
-        base_rating = 7.5
-        city_adjustments = {
-            "new york": 1.0, "san francisco": 1.2, "seattle": 1.0, "portland": 0.8,
-            "los angeles": 0.7, "chicago": 0.6, "boston": 1.3, "austin": 0.9
+        # Demo data based on city characteristics
+        city_ratings = {
+            "seattle": {"rating": 8.5, "rank": 12},
+            "portland": {"rating": 7.8, "rank": 24},
+            "san francisco": {"rating": 8.9, "rank": 8},
+            "new york": {"rating": 8.7, "rank": 10},
+            "chicago": {"rating": 7.5, "rank": 35},
+            "boston": {"rating": 9.1, "rank": 5},
+            "austin": {"rating": 8.2, "rank": 18},
+            "denver": {"rating": 7.9, "rank": 22}
         }
         
-        adjustment = city_adjustments.get(city.lower(), 0)
-        school_rating = base_rating + adjustment
+        city_data = city_ratings.get(city.lower(), {"rating": 7.0, "rank": 50})
+        total_schools = int(30 + (city_data["rating"] * 5))
         
         return {
-            "avg_school_rating": f"{school_rating:.1f}",
-            "top_school": f"{city} High School",
-            "student_teacher_ratio": f"{int(15 + (10-school_rating))}:1",
-            "college_readiness": f"{int(70 + school_rating * 3)}%",
-            "graduation_rate": f"{int(75 + school_rating * 2)}%",
-            "ap_participation": f"{int(40 + school_rating * 5)}%",
-            "test_scores": f"{int(1100 + school_rating * 50)} SAT avg"
+            "district_name": f"{city} School District",
+            "highest_ranked_school": f"{city} High School",
+            "school_rank": f"#{city_data['rank']} in {state}",
+            "school_rating": f"{city_data['rating']}/10",
+            "total_schools": str(total_schools)
         }
     except Exception as e:
         st.warning(f"Using estimated education data: {str(e)}")
         return {
-            "avg_school_rating": "N/A",
-            "top_school": "N/A",
-            "student_teacher_ratio": "N/A",
-            "college_readiness": "N/A",
-            "graduation_rate": "N/A",
-            "ap_participation": "N/A",
-            "test_scores": "N/A"
+            "district_name": f"{city} School District",
+            "highest_ranked_school": "Local High School",
+            "school_rank": "N/A",
+            "school_rating": "7.0/10",
+            "total_schools": "35"
         }
 
 # Initialize data in session state
@@ -541,99 +509,77 @@ if 'data1' not in st.session_state:
 if 'data2' not in st.session_state:
     st.session_state.data2 = None
 
-# Compare button with improved styling
+# Add prominent comparison section
 st.markdown("""
-    <div style='text-align: center; margin: 2rem 0;'>
-        <p style='color: #4b5563; font-size: 0.9rem; margin-bottom: 0.5rem;'>
-            👇 First, click here to load the comparison data:
+    <div style='text-align: center; background-color: #f0f9ff; padding: 2rem; border-radius: 1rem; margin: 1rem 0; border: 2px solid #bae6fd; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);'>
+        <h3 style='color: #0369a1; font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem;'>
+            🎯 Ready to Compare These Locations?
+        </h3>
+        <p style='color: #0c4a6e; font-size: 1.1rem; margin-bottom: 2rem;'>
+            Get detailed insights about schools, housing, safety, and quality of life
         </p>
     </div>
 """, unsafe_allow_html=True)
 
-if st.button("Compare Locations", help="Click to compare the two locations", use_container_width=True):
-    with st.spinner("Gathering data..."):
-        try:
-            # Get data for both locations and store in session state
+# Make the button more prominent
+st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+
+# Create a container for the loading animation
+loading_container = st.empty()
+
+if st.button("🔄 Compare Locations Now", help="Click to load comparison data", use_container_width=True):
+    try:
+        # Show loading animation with progress
+        with loading_container.container():
+            st.markdown("""
+                <div style='text-align: center; padding: 2rem;'>
+                    <div style='display: inline-block; padding: 1rem 2rem; background-color: #e0f2fe; border-radius: 0.5rem; margin-bottom: 1rem;'>
+                        <p style='color: #0369a1; font-size: 1.1rem; margin-bottom: 0.5rem;'>🔄 Loading comparison data...</p>
+                        <div style='color: #0c4a6e; font-size: 0.9rem;'>This may take a few moments</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Get first location data
+            status_text.text("Loading data for " + location1 + "...")
+            progress_bar.progress(25)
             st.session_state.data1 = get_location_data(location1)
+            progress_bar.progress(50)
+            
+            # Get second location data
+            status_text.text("Loading data for " + location2 + "...")
+            progress_bar.progress(75)
             st.session_state.data2 = get_location_data(location2)
-        except Exception as e:
-            st.error(f"An error occurred while comparing locations: {str(e)}")
-            st.session_state.data1 = None
-            st.session_state.data2 = None
+            progress_bar.progress(100)
+            status_text.text("Data loaded successfully!")
+            
+        # Clear the loading animation
+        loading_container.empty()
+        
+    except Exception as e:
+        st.error(f"An error occurred while comparing locations: {str(e)}")
+        st.session_state.data1 = None
+        st.session_state.data2 = None
 
 # Display comparison if data exists in session state
 if st.session_state.data1 and st.session_state.data2:
     # Display comparison sections
-    sections = ["education", "real_estate", "demographics", "safety", "quality_of_life"]
+    sections = ["education", "real_estate", "safety", "quality_of_life"]
     section_icons = {
         "education": "📚", 
         "real_estate": "🏠",
-        "demographics": "👥", 
         "safety": "🚓",
         "quality_of_life": "✨"
     }
 
-    # Custom display function for real estate section
     def display_real_estate_section(data1, data2, location1, location2):
         st.markdown("""
             <h2 style='text-align: center; color: #111827; margin: 2rem 0 1rem;'>
                 🏠 Real Estate Market Analysis
             </h2>
-        """, unsafe_allow_html=True)
-        
-        # Market Health Overview with improved styling
-        st.markdown("""
-            <div style='background-color: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin: 1rem 0;'>
-                <h3 style='color: #111827; margin-bottom: 1rem; text-align: center;'>
-                    Market Health Overview
-                </h3>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        health_col1, health_col2 = st.columns(2)
-        
-        def display_market_health(data, location):
-            health_score = float(data["real_estate"]["market_health"].split("/")[0])/100
-            demand_score = float(data["real_estate"]["buyer_demand"].split("/")[0])/100
-            
-            health_color = "#22c55e" if health_score >= 0.7 else "#eab308" if health_score >= 0.5 else "#ef4444"
-            demand_color = "#22c55e" if demand_score >= 0.7 else "#eab308" if demand_score >= 0.5 else "#ef4444"
-            
-            st.markdown(f"""
-                <div style='background-color: white; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                    <h4 style='color: #111827; margin-bottom: 0.5rem;'>{location}</h4>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            st.progress(health_score)
-            st.markdown(f"""
-                <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
-                    <span style='color: #6b7280; font-size: 0.875rem;'>Market Health</span>
-                    <span style='color: {health_color}; font-weight: 600;'>{data["real_estate"]["market_health"]}</span>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            st.progress(demand_score)
-            st.markdown(f"""
-                <div style='display: flex; justify-content: space-between;'>
-                    <span style='color: #6b7280; font-size: 0.875rem;'>Buyer Demand</span>
-                    <span style='color: {demand_color}; font-weight: 600;'>{data["real_estate"]["buyer_demand"]}</span>
-                </div>
-            """, unsafe_allow_html=True)
-
-        with health_col1:
-            display_market_health(data1, location1)
-            
-        with health_col2:
-            display_market_health(data2, location2)
-        
-        # Detailed Market Analysis with improved styling
-        st.markdown("""
-            <div style='background-color: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin: 2rem 0 1rem;'>
-                <h3 style='color: #111827; margin-bottom: 1rem; text-align: center;'>
-                    Detailed Market Analysis
-                </h3>
-            </div>
         """, unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
@@ -644,51 +590,20 @@ if st.session_state.data1 and st.session_state.data2:
                     <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
                     
                     <div style='margin-bottom: 1.5rem;'>
-                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Price Metrics</h5>
-                        <div style='color: #111827; font-size: 1.25rem; font-weight: 600;'>
+                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Average House Price</h5>
+                        <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
                             {data['real_estate']['median_price']}
                         </div>
-                        <div style='color: #6b7280; font-size: 0.875rem;'>Median Price</div>
-                        
-                        <div style='display: flex; justify-content: space-between; margin-top: 1rem;'>
-                            <div style='text-align: center; flex: 1; padding: 0.5rem; background-color: #f8fafc; border-radius: 0.5rem; margin-right: 0.5rem;'>
-                                <div style='color: #111827; font-weight: 600;'>${data['real_estate']['price_per_sqft']}</div>
-                                <div style='color: #6b7280; font-size: 0.875rem;'>Price/sqft</div>
-                            </div>
-                            <div style='text-align: center; flex: 1; padding: 0.5rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                                {trend_indicator(data['real_estate']['price_trend'])}
-                                <div style='color: #6b7280; font-size: 0.875rem;'>Price Trend</div>
-                            </div>
-                        </div>
                     </div>
                     
-                    <div style='margin: 2rem 0;'>
-                        <h5 style='color: #4b5563; margin-bottom: 1rem;'>📊 Market Activity</h5>
-                        <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
-                            <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                                <div style='color: #111827; font-weight: 600;'>{data['real_estate']['avg_days_on_market']} days</div>
-                                <div style='color: #6b7280; font-size: 0.875rem;'>Avg Days on Market</div>
-                            </div>
-                            <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                                <div style='color: #111827; font-weight: 600;'>{data['real_estate']['inventory']}</div>
-                                <div style='color: #6b7280; font-size: 0.875rem;'>Active Listings</div>
-                            </div>
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
+                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                            <div style='color: #111827; font-weight: 600;'>{data['real_estate']['market_health']}</div>
+                            <div style='color: #6b7280; font-size: 0.875rem;'>Market Health</div>
                         </div>
-                        <div style='margin-top: 1rem; text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            {trend_indicator(data['real_estate']['new_listings'])}
-                            <div style='color: #6b7280; font-size: 0.875rem;'>New Listings Growth</div>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <h5 style='color: #4b5563; margin-bottom: 1rem;'>📈 Market Dynamics</h5>
-                        <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
-                            <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                                {metric_with_indicator(data['real_estate']['price_cuts'], 'Price Reductions', reverse=True)}
-                            </div>
-                            <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                                {metric_with_indicator(data['real_estate']['market_volatility'], 'Market Volatility', reverse=True)}
-                            </div>
+                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                            <div style='color: #111827; font-weight: 600;'>{data['real_estate']['buyer_demand']}</div>
+                            <div style='color: #6b7280; font-size: 0.875rem;'>Buyer Demand</div>
                         </div>
                     </div>
                 </div>
@@ -702,7 +617,6 @@ if st.session_state.data1 and st.session_state.data2:
     section_titles = {
         "education": "Education & Schools",
         "real_estate": "Real Estate Market",
-        "demographics": "Demographics & Community",
         "safety": "Safety & Crime",
         "quality_of_life": "Quality of Life"
     }
@@ -806,10 +720,16 @@ if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_
     if user_question:
         response = f"Based on the comparison between {location1} and {location2}, "
         if "school" in user_question.lower():
-            response += f"{location1 if st.session_state.data1['education']['avg_school_rating'] > st.session_state.data2['education']['avg_school_rating'] else location2} has higher-rated schools overall."
+            rating1 = float(st.session_state.data1['education']['school_rating'].split('/')[0])
+            rating2 = float(st.session_state.data2['education']['school_rating'].split('/')[0])
+            better_location = location1 if rating1 > rating2 else location2
+            response += f"{better_location} has better schools with a rating of {st.session_state.data1['education']['school_rating'] if better_location == location1 else st.session_state.data2['education']['school_rating']}."
         elif "safe" in user_question.lower() or "crime" in user_question.lower():
-            response += f"{location1 if st.session_state.data1['safety']['safety_score'] > st.session_state.data2['safety']['safety_score'] else location2} has a higher safety score."
-        elif "cost" in user_question.lower() or "price" in user_question.lower():
+            safety1 = float(st.session_state.data1['safety']['safety_score'].strip('%'))
+            safety2 = float(st.session_state.data2['safety']['safety_score'].strip('%'))
+            better_location = location1 if safety1 > safety2 else location2
+            response += f"{better_location} has a higher safety score of {st.session_state.data1['safety']['safety_score'] if better_location == location1 else st.session_state.data2['safety']['safety_score']}."
+        elif "cost" in user_question.lower() or "price" in user_question.lower() or "house" in user_question.lower():
             response += f"The median home price in {location1} is {st.session_state.data1['real_estate']['median_price']} compared to {st.session_state.data2['real_estate']['median_price']} in {location2}."
         else:
             response += "both locations have their unique advantages. For specific details, please refer to the comparison above."
