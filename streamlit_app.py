@@ -355,76 +355,25 @@ def test_census_api():
         return False
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get simulated real estate data"""
+    """Get random real estate data"""
     try:
-        st.info(f"Generating real estate data for {city}, {state}...")
-        
-        # Base values for major cities
-        city_data = {
-            "seattle": {"price": 850000, "health": 85, "rent": 2800, "units": 350000, "occupancy": 96},
-            "portland": {"price": 650000, "health": 75, "rent": 2200, "units": 280000, "occupancy": 94},
-            "san francisco": {"price": 1250000, "health": 90, "rent": 3500, "units": 400000, "occupancy": 97},
-            "los angeles": {"price": 950000, "health": 82, "rent": 2900, "units": 1500000, "occupancy": 95},
-            "new york": {"price": 1100000, "health": 88, "rent": 3200, "units": 3500000, "occupancy": 98},
-            "chicago": {"price": 450000, "health": 72, "rent": 1900, "units": 1200000, "occupancy": 92},
-            "boston": {"price": 800000, "health": 84, "rent": 2600, "units": 300000, "occupancy": 95},
-            "austin": {"price": 550000, "health": 78, "rent": 2000, "units": 450000, "occupancy": 93}
-        }
-        
-        # Get data for the city or use default values
-        city_info = city_data.get(city.lower(), {
-            "price": 500000, 
-            "health": 70,
-            "rent": 1800,
-            "units": 200000,
-            "occupancy": 90
-        })
-        
-        # Add random variation based on state
-        state_adjustments = {
-            'CA': {'price': 1.2, 'rent': 1.15, 'health': 1.1},
-            'NY': {'price': 1.15, 'rent': 1.2, 'health': 1.05},
-            'WA': {'price': 1.1, 'rent': 1.1, 'health': 1.1},
-            'MA': {'price': 1.05, 'rent': 1.1, 'health': 1.05},
-            'TX': {'price': 0.9, 'rent': 0.95, 'health': 1.0},
-            'FL': {'price': 0.95, 'rent': 0.9, 'health': 0.95},
-            'IL': {'price': 0.85, 'rent': 0.9, 'health': 0.9},
-            'OH': {'price': 0.8, 'rent': 0.85, 'health': 0.9}
-        }
-        
-        # Get state adjustment factors or use default
-        state_mult = state_adjustments.get(state.upper(), {
-            'price': 1.0,
-            'rent': 1.0,
-            'health': 1.0
-        })
-        
-        # Calculate final values with some randomization
         import random
-        price_variation = random.uniform(0.95, 1.05)
-        rent_variation = random.uniform(0.95, 1.05)
-        health_variation = random.uniform(0.98, 1.02)
         
-        final_price = int(city_info["price"] * state_mult['price'] * price_variation)
-        final_rent = int(city_info["rent"] * state_mult['rent'] * rent_variation)
-        final_health = min(100, int(city_info["health"] * state_mult['health'] * health_variation))
+        # Generate random values
+        price = random.randint(300000, 1500000)
+        rent = random.randint(1500, 4000)
+        units = random.randint(100000, 500000)
+        occupancy = random.randint(85, 98)
+        health = random.randint(60, 95)
         
         # Format and return the data
         formatted_data = {
-            "median_price": f"${final_price:,}",
-            "median_rent": f"${final_rent:,}",
-            "total_units": f"{city_info['units']:,}",
-            "occupancy_rate": f"{city_info['occupancy']}%",
-            "market_health": f"{final_health}/100"
+            "median_price": f"${price:,}",
+            "median_rent": f"${rent:,}",
+            "total_units": f"{units:,}",
+            "occupancy_rate": f"{occupancy}%",
+            "market_health": f"{health}/100"
         }
-        
-        st.success(f"""Generated metrics for {city}, {state}:
-            - Median Home Price: {formatted_data['median_price']}
-            - Median Rent: {formatted_data['median_rent']}
-            - Total Units: {formatted_data['total_units']}
-            - Occupancy Rate: {formatted_data['occupancy_rate']}
-            - Market Health: {formatted_data['market_health']}
-        """)
         
         return formatted_data
         
