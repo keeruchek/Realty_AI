@@ -292,101 +292,212 @@ def get_location_data(location: str) -> Dict[Any, Any]:
         return None
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get real estate data using various sources"""
+    """Get real estate data from Census API"""
     try:
-        # Get real-time market trends from multiple real estate ETFs
-        etfs = {
-            "IYR": "U.S. Real Estate",  # iShares U.S. Real Estate ETF
-            "VNQ": "Vanguard Real Estate",  # Vanguard Real Estate ETF
-            "XLRE": "Real Estate Select"  # Real Estate Select Sector SPDR
+        st.info(f"Fetching real estate data for {city}, {state}...")
+        
+        # Census API endpoints for the latest American Community Survey 5-year estimates
+        base_url = "https://api.census.gov/data/2021/acs/acs5/subject"
+        
+        st.info(f"Fetching Census data for {city}, {state}...")
+        
+        # Variables to fetch from ACS5 Subject tables
+        variables = [
+            "NAME",                 # Place name
+            "S2506_C01_001E",      # Owner-occupied housing units
+            "S2506_C01_039E",      # Median value (dollars)
+            "S2502_C01_001E",      # Total housing units
+            "S2502_C01_002E",      # Occupied housing units
+            "S2503_C04_028E"       # Median gross rent
+        ]
+        
+        # Get state FIPS code (2-digit state codes)
+        state_fips = {
+            'AL': '01', 'AK': '02', 'AZ': '04', 'AR': '05', 'CA': '06', 'CO': '08', 'CT': '09',
+            'DE': '10', 'FL': '12', 'GA': '13', 'HI': '15', 'ID': '16', 'IL': '17', 'IN': '18',
+            'IA': '19', 'KS': '20', 'KY': '21', 'LA': '22', 'ME': '23', 'MD': '24', 'MA': '25',
+            'MI': '26', 'MN': '27', 'MS': '28', 'MO': '29', 'MT': '30', 'NE': '31', 'NV': '32',
+            'NH': '33', 'NJ': '34', 'NM': '35', 'NY': '36', 'NC': '37', 'ND': '38', 'OH': '39',
+            'OK': '40', 'OR': '41', 'PA': '42', 'RI': '44', 'SC': '45', 'SD': '46', 'TN': '47',
+            'TX': '48', 'UT': '49', 'VT': '50', 'VA': '51', 'WA': '53', 'WV': '54', 'WI': '55',
+            'WY': '56'
         }
         
-        market_trends = {}
-        total_trend = 0
-        valid_trends = 0
-        
-        for symbol, name in etfs.items():
-            try:
-                etf = yf.Ticker(symbol)
-                data = etf.history(period="6mo")
-                if not data.empty:
-                    trend = ((data['Close'][-1] / data['Close'][0]) - 1) * 100
-                    volatility = data['Close'].std() / data['Close'].mean() * 100
-                    market_trends[symbol] = {"trend": trend, "volatility": volatility}
-                    total_trend += trend
-                    valid_trends += 1
-            except Exception as e:
-                st.warning(f"Could not fetch data for {name} ETF: {str(e)}")
-        
-        if valid_trends == 0:
-            raise ValueError("Could not fetch any market trend data")
+        state_code = state_fips.get(state.upper())
+        if not state_code:
+            st.error(f"Invalid state code: {state}")
+            return {
+                "median_price": "N/A (Invalid State)",
+                "total_units": "N/A",
+                "occupancy_rate": "N/A",
+                "market_health": "N/A",
+                "median_rent": "N/A"
+            }
             
-        # Calculate average market trend and volatility
-        current_trend = total_trend / valid_trends
-        market_volatility = sum(mt["volatility"] for mt in market_trends.values()) / len(market_trends)
+        # Variables to fetch from ACS5 Subject tables
+        variables = [
+            "NAME",                 # Place name
+            "S2506_C01_001E",      # Owner-occupied housing units
+            "S2506_C01_039E",      # Median value (dollars)
+            "S2502_C01_001E",      # Total housing units
+            "S2502_C01_002E",      # Occupied housing units
+            "S2503_C04_028E"       # Median gross rent
+        ]
         
-        # Enhanced city-specific price adjustments based on market data
-        base_price = 500000
-        city_factors = {
-            "new york": {"mult": 4.0, "trend": 1.2, "volatility": 1.3},
-            "san francisco": {"mult": 3.5, "trend": 1.1, "volatility": 1.2},
-            "seattle": {"mult": 2.0, "trend": 0.9, "volatility": 1.1},
-            "portland": {"mult": 1.5, "trend": 0.8, "volatility": 0.9},
-            "los angeles": {"mult": 3.0, "trend": 1.0, "volatility": 1.2},
-            "chicago": {"mult": 1.8, "trend": 0.7, "volatility": 0.8},
-            "boston": {"mult": 2.2, "trend": 0.9, "volatility": 1.0},
-            "austin": {"mult": 1.7, "trend": 1.3, "volatility": 1.1},
-            "denver": {"mult": 1.6, "trend": 1.1, "volatility": 1.0},
-            "miami": {"mult": 2.1, "trend": 1.4, "volatility": 1.3},
-            "washington": {"mult": 2.3, "trend": 0.9, "volatility": 0.9},
-            "philadelphia": {"mult": 1.4, "trend": 0.7, "volatility": 0.8}
-        }
+        # Construct and log the API URL
+        url = f"{base_url}?get={','.join(variables)}&for=place:*&in=state:{state_code}"
+        st.info(f"Requesting Census data from: {url}")
         
-        # Get city-specific factors with fallback to regional averages
-        city_data = city_factors.get(city.lower(), {
-            "mult": 1.0,
-            "trend": 1.0,
-            "volatility": 1.0
-        })
+        # Make API request with error handling
+        try:
+            response = requests.get(url)
+            st.info(f"Census API Response Status: {response.status_code}")
+            
+            if response.status_code != 200:
+                error_msg = f"Census API error (Status {response.status_code})"
+                try:
+                    error_details = response.json()
+                    error_msg += f": {error_details.get('message', 'No details available')}"
+                except:
+                    error_msg += f": {response.text[:200]}"
+                st.error(error_msg)
+            return {
+                "median_price": "N/A (API Error)",
+                "total_units": "N/A",
+                "occupancy_rate": "N/A",
+                "market_health": "N/A",
+                "median_rent": "N/A"
+            }
+            
+        data = response.json()
+        headers = data[0]
+        values = None
         
-        # Calculate market-adjusted metrics
-        price_multiplier = city_data["mult"]
-        trend_multiplier = city_data["trend"]
-        volatility_multiplier = city_data["volatility"]
+        # Enhanced city name matching with detailed logging
+        city_clean = city.lower().strip()
+        state_clean = state.upper().strip()
         
-        # Calculate median price with market influences and local factors
-        median_price = base_price * price_multiplier * (1 + (current_trend * trend_multiplier)/100)
-        local_trend = current_trend * trend_multiplier
-        local_volatility = market_volatility * volatility_multiplier
+        st.info(f"Searching for {city_clean}, {state_clean} in Census data...")
         
-        # Calculate enhanced derived metrics
-        days_on_market = max(15, min(60, int(45 - local_trend + local_volatility/4)))
-        inventory_level = int((median_price / 10000) * (1 + local_volatility/100))
-        price_cut_pct = max(5, min(40, int(25 - local_trend + local_volatility/5)))
+        # Log the first few places in the response for debugging
+        st.write("Available places (first 5):")
+        for i, row in enumerate(data[1:6]):
+            place_name = row[headers.index("NAME")]
+            st.write(f"- {place_name}")
         
-        # Calculate market health indicators
-        market_health = max(0, min(100, int(70 + local_trend - local_volatility/2)))
-        buyer_demand = max(0, min(100, int(65 + local_trend * 2 - days_on_market/2)))
+        # Try to find the city with flexible matching
+        best_match = None
+        best_match_score = 0
         
-        # Return enhanced market data
-        return {
-            "median_price": f"${int(median_price):,}",
-            "price_trend": f"{local_trend:.1f}% YTD",
-            "market_health": f"{market_health}/100",
-            "buyer_demand": f"{buyer_demand}/100",
-            "avg_days_on_market": days_on_market,
-            "price_per_sqft": int(median_price / 1200),
-            "inventory": inventory_level,
-            "new_listings": f"{(local_trend * 1.5):.1f}% YoY",
-            "price_cuts": f"{price_cut_pct}% of listings",
-            "market_volatility": f"{local_volatility:.1f}%"
-        }
+        for row in data[1:]:
+            place_name = row[headers.index("NAME")].lower()
+            
+            # Calculate match score
+            score = 0
+            if city_clean in place_name:
+                score += 1
+            if state_clean.lower() in place_name:
+                score += 1
+            if f"{city_clean} city" in place_name:
+                score += 1
+            
+            # Update best match if this is better
+            if score > best_match_score:
+                best_match = row
+                best_match_score = score
+                st.info(f"Found potential match: {row[headers.index('NAME')]} (score: {score})")
+        
+        # Use the best match if it's good enough
+        if best_match_score >= 2:
+            values = best_match
+            st.success(f"Using best match: {best_match[headers.index('NAME')]}")
+        else:
+            st.warning(f"No good match found for {city}, {state}. Using closest match if available.")
+            values = best_match if best_match else None
+                
+        if not values:
+            st.error(f"City not found in Census data: {city}")
+            return {
+                "median_price": "N/A (City Not Found)",
+                "total_units": "N/A",
+                "occupancy_rate": "N/A",
+                "market_health": "N/A",
+                "median_rent": "N/A"
+            }
+            
+            # Process the data with new ACS5 Subject variables and enhanced error handling
+            try:
+                # Extract and validate each metric
+                def safe_int(value, default=0):
+                    try:
+                        return int(value) if value not in [None, '', '-'] else default
+                    except ValueError:
+                        st.warning(f"Could not convert value '{value}' to integer")
+                        return default
+
+                median_value = safe_int(values[headers.index("S2506_C01_039E")])
+                total_units = safe_int(values[headers.index("S2502_C01_001E")])
+                occupied_units = safe_int(values[headers.index("S2502_C01_002E")])
+                median_rent = safe_int(values[headers.index("S2503_C04_028E")])
+                owner_occupied = safe_int(values[headers.index("S2506_C01_001E")])
+
+                st.info(f"""Raw values from Census API:
+                    - Median Value: {values[headers.index("S2506_C01_039E")]}
+                    - Total Units: {values[headers.index("S2502_C01_001E")]}
+                    - Occupied Units: {values[headers.index("S2502_C01_002E")]}
+                    - Median Rent: {values[headers.index("S2503_C04_028E")]}
+                    - Owner Occupied: {values[headers.index("S2506_C01_001E")]}
+                """)
+                
+                # Calculate derived metrics with validation
+                if total_units > 0:
+                    occupancy_rate = round((occupied_units / total_units * 100), 1)
+                    ownership_rate = round((owner_occupied / total_units * 100), 1)
+                    # Ensure rates are within valid range
+                    occupancy_rate = min(100, max(0, occupancy_rate))
+                    ownership_rate = min(100, max(0, ownership_rate))
+                else:
+                    occupancy_rate = 0
+                    ownership_rate = 0
+                    st.warning("Total housing units is zero or missing")
+                
+                # Calculate market health score with validated inputs
+                market_health = min(100, int(occupancy_rate * 0.6 + ownership_rate * 0.4))
+                
+                st.success(f"""Calculated metrics:
+                    - Occupancy Rate: {occupancy_rate}%
+                    - Ownership Rate: {ownership_rate}%
+                    - Market Health: {market_health}/100
+                """)
+            
+            st.success(f"Successfully processed data for {values[headers.index('NAME')]}")
+            
+            return {
+                "median_price": f"${median_value:,}" if median_value > 0 else "N/A (No Data)",
+                "median_rent": f"${median_rent:,}/month" if median_rent > 0 else "N/A (No Data)",
+                "total_units": f"{total_units:,}" if total_units > 0 else "N/A",
+                "occupancy_rate": f"{occupancy_rate}%" if total_units > 0 else "N/A",
+                "ownership_rate": f"{ownership_rate}%" if total_units > 0 else "N/A",
+                "market_health": f"{market_health}/100" if total_units > 0 else "N/A"
+            }
+        except (ValueError, IndexError) as e:
+            st.error(f"Error processing Census data: {str(e)}")
+            return {
+                "median_price": "N/A (Data Error)",
+                "total_units": "N/A",
+                "occupancy_rate": "N/A",
+                "market_health": "N/A",
+                "median_rent": "N/A"
+            }
+            
     except Exception as e:
-        st.warning(f"Using estimated real estate data: {str(e)}")
+        st.error(f"Unexpected error fetching real estate data: {str(e)}")
         return {
-            "median_price": "N/A",
-            "price_trend": "N/A",
-            "market_health": "N/A"
+            "median_price": "N/A (Error)",
+            "total_units": "N/A",
+            "occupancy_rate": "N/A",
+            "market_health": "N/A",
+            "median_rent": "N/A"
         }
 
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
@@ -574,7 +685,7 @@ if st.session_state.data1 and st.session_state.data2:
 def display_real_estate_section(data1, data2, location1, location2):
     st.markdown("""
         <h2 style='text-align: center; color: #111827; margin: 2rem 0 1rem;'>
-            🏠 Real Estate Market Analysis
+            🏠 Real Estate Market Data
         </h2>
     """, unsafe_allow_html=True)
     
@@ -586,20 +697,35 @@ def display_real_estate_section(data1, data2, location1, location2):
                 <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
                 
                 <div style='margin-bottom: 1.5rem;'>
-                    <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Average House Price</h5>
+                    <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Median House Price</h5>
                     <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
                         {data['real_estate']['median_price']}
                     </div>
                 </div>
                 
+                <div style='margin-bottom: 1.5rem;'>
+                    <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>🏢 Median Rent</h5>
+                    <div style='color: #111827; font-size: 1.25rem; font-weight: 600;'>
+                        {data['real_estate']['median_rent']}
+                    </div>
+                </div>
+                
                 <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
+                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['total_units']}</div>
+                        <div style='color: #6b7280; font-size: 0.875rem;'>Total Housing Units</div>
+                    </div>
+                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['occupancy_rate']}</div>
+                        <div style='color: #6b7280; font-size: 0.875rem;'>Occupancy Rate</div>
+                    </div>
+                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
+                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['ownership_rate']}</div>
+                        <div style='color: #6b7280; font-size: 0.875rem;'>Ownership Rate</div>
+                    </div>
                     <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
                         <div style='color: #111827; font-weight: 600;'>{data['real_estate']['market_health']}</div>
                         <div style='color: #6b7280; font-size: 0.875rem;'>Market Health</div>
-                    </div>
-                    <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                        <div style='color: #111827; font-weight: 600;'>{data['real_estate']['buyer_demand']}</div>
-                        <div style='color: #6b7280; font-size: 0.875rem;'>Buyer Demand</div>
                     </div>
                 </div>
             </div>
