@@ -296,19 +296,20 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
     try:
         st.info(f"Fetching real estate data for {city}, {state}...")
         
-        # Census API endpoints for the latest American Community Survey 5-year estimates
-        base_url = "https://api.census.gov/data/2021/acs/acs5/subject"
+        # Census API configuration
+        CENSUS_API_KEY = os.getenv('CENSUS_API_KEY', '53bbd3cc45c36cc6cd94c6359e7d34d7c4138dc8')  # Demo key for testing
+        base_url = "https://api.census.gov/data/2021/acs/acs5"
         
         st.info(f"Fetching Census data for {city}, {state}...")
         
-        # Variables to fetch from ACS5 Subject tables
+        # Variables to fetch from ACS5 detailed tables
         variables = [
             "NAME",                 # Place name
-            "S2506_C01_001E",      # Owner-occupied housing units
-            "S2506_C01_039E",      # Median value (dollars)
-            "S2502_C01_001E",      # Total housing units
-            "S2502_C01_002E",      # Occupied housing units
-            "S2503_C04_028E"       # Median gross rent
+            "B25077_001E",         # Median home value
+            "B25002_001E",         # Total housing units
+            "B25002_002E",         # Occupied housing units
+            "B25064_001E",         # Median gross rent
+            "B25003_002E"          # Owner occupied units
         ]
         
         # Get state FIPS code (2-digit state codes)
@@ -334,33 +335,32 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
                 "median_rent": "N/A"
             }
             
-        # Variables to fetch from ACS5 Subject tables
+        # Variables to fetch from ACS5 detailed tables
         variables = [
             "NAME",                 # Place name
-            "S2506_C01_001E",      # Owner-occupied housing units
-            "S2506_C01_039E",      # Median value (dollars)
-            "S2502_C01_001E",      # Total housing units
-            "S2502_C01_002E",      # Occupied housing units
-            "S2503_C04_028E"       # Median gross rent
+            "B25077_001E",         # Median home value
+            "B25002_001E",         # Total housing units
+            "B25002_002E",         # Occupied housing units
+            "B25064_001E",         # Median gross rent
+            "B25003_002E"          # Owner occupied units
         ]
         
         # Construct and log the API URL
-        url = f"{base_url}?get={','.join(variables)}&for=place:*&in=state:{state_code}"
+        url = f"{base_url}?key={CENSUS_API_KEY}&get={','.join(variables)}&for=place:*&in=state:{state_code}"
         st.info(f"Requesting Census data from: {url}")
         
         # Make API request with error handling
-        try:
-            response = requests.get(url)
-            st.info(f"Census API Response Status: {response.status_code}")
-            
-            if response.status_code != 200:
-                error_msg = f"Census API error (Status {response.status_code})"
-                try:
-                    error_details = response.json()
-                    error_msg += f": {error_details.get('message', 'No details available')}"
-                except:
-                    error_msg += f": {response.text[:200]}"
-                st.error(error_msg)
+        response = requests.get(url)
+        st.info(f"Census API Response Status: {response.status_code}")
+        
+        if response.status_code != 200:
+            error_msg = f"Census API error (Status {response.status_code})"
+            try:
+                error_details = response.json()
+                error_msg += f": {error_details.get('message', 'No details available')}"
+            except:
+                error_msg += f": {response.text[:200]}"
+            st.error(error_msg)
             return {
                 "median_price": "N/A (API Error)",
                 "total_units": "N/A",
@@ -368,10 +368,12 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
                 "market_health": "N/A",
                 "median_rent": "N/A"
             }
-            
-        data = response.json()
-        headers = data[0]
-        values = None
+        
+        try:
+            data = response.json()
+            st.info(f"Census API Response: {data[:2]}")  # Log first two rows for debugging
+            headers = data[0]
+            values = None
         
         # Enhanced city name matching with detailed logging
         city_clean = city.lower().strip()
@@ -425,51 +427,52 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
                 "median_rent": "N/A"
             }
             
-            # Process the data with new ACS5 Subject variables and enhanced error handling
-            try:
-                # Extract and validate each metric
-                def safe_int(value, default=0):
-                    try:
-                        return int(value) if value not in [None, '', '-'] else default
-                    except ValueError:
-                        st.warning(f"Could not convert value '{value}' to integer")
-                        return default
+        # Process the data with new ACS5 Subject variables and enhanced error handling
+        try:
+            # Helper function for safe integer conversion
+            def safe_int(value, default=0):
+                try:
+                    return int(value) if value not in [None, '', '-'] else default
+                except ValueError:
+                    st.warning(f"Could not convert value '{value}' to integer")
+                    return default
 
-                median_value = safe_int(values[headers.index("S2506_C01_039E")])
-                total_units = safe_int(values[headers.index("S2502_C01_001E")])
-                occupied_units = safe_int(values[headers.index("S2502_C01_002E")])
-                median_rent = safe_int(values[headers.index("S2503_C04_028E")])
-                owner_occupied = safe_int(values[headers.index("S2506_C01_001E")])
+            # Extract and validate metrics
+            median_value = safe_int(values[headers.index("B25077_001E")])
+            total_units = safe_int(values[headers.index("B25002_001E")])
+            occupied_units = safe_int(values[headers.index("B25002_002E")])
+            median_rent = safe_int(values[headers.index("B25064_001E")])
+            owner_occupied = safe_int(values[headers.index("B25003_002E")])
 
-                st.info(f"""Raw values from Census API:
-                    - Median Value: {values[headers.index("S2506_C01_039E")]}
-                    - Total Units: {values[headers.index("S2502_C01_001E")]}
-                    - Occupied Units: {values[headers.index("S2502_C01_002E")]}
-                    - Median Rent: {values[headers.index("S2503_C04_028E")]}
-                    - Owner Occupied: {values[headers.index("S2506_C01_001E")]}
-                """)
-                
-                # Calculate derived metrics with validation
-                if total_units > 0:
-                    occupancy_rate = round((occupied_units / total_units * 100), 1)
-                    ownership_rate = round((owner_occupied / total_units * 100), 1)
-                    # Ensure rates are within valid range
-                    occupancy_rate = min(100, max(0, occupancy_rate))
-                    ownership_rate = min(100, max(0, ownership_rate))
-                else:
-                    occupancy_rate = 0
-                    ownership_rate = 0
-                    st.warning("Total housing units is zero or missing")
-                
-                # Calculate market health score with validated inputs
-                market_health = min(100, int(occupancy_rate * 0.6 + ownership_rate * 0.4))
-                
-                st.success(f"""Calculated metrics:
-                    - Occupancy Rate: {occupancy_rate}%
-                    - Ownership Rate: {ownership_rate}%
-                    - Market Health: {market_health}/100
-                """)
+            st.info(f"""Raw values from Census API:
+                - Median Value: {values[headers.index("B25077_001E")]}
+                - Total Units: {values[headers.index("B25002_001E")]}
+                - Occupied Units: {values[headers.index("B25002_002E")]}
+                - Median Rent: {values[headers.index("B25064_001E")]}
+                - Owner Occupied: {values[headers.index("B25003_002E")]}
+            """)
             
+            # Calculate derived metrics with validation
+            if total_units > 0:
+                occupancy_rate = round((occupied_units / total_units * 100), 1)
+                ownership_rate = round((owner_occupied / total_units * 100), 1)
+                # Ensure rates are within valid range
+                occupancy_rate = min(100, max(0, occupancy_rate))
+                ownership_rate = min(100, max(0, ownership_rate))
+            else:
+                occupancy_rate = 0
+                ownership_rate = 0
+                st.warning("Total housing units is zero or missing")
+            
+            # Calculate market health score with validated inputs
+            market_health = min(100, int(occupancy_rate * 0.6 + ownership_rate * 0.4))
+            
+            st.success(f"""Calculated metrics:
+                - Occupancy Rate: {occupancy_rate}%
+                - Ownership Rate: {ownership_rate}%
+                - Market Health: {market_health}/100
+            """)
+
             st.success(f"Successfully processed data for {values[headers.index('NAME')]}")
             
             return {
@@ -736,6 +739,18 @@ def display_real_estate_section(data1, data2, location1, location2):
     
     with col2:
         display_market_metrics(data2, location2)
+
+# Define sections and icons
+sections = ["education", "real_estate", "safety", "quality_of_life"]
+section_icons = {
+    "education": "📚", 
+    "real_estate": "🏠",
+    "safety": "🚓",
+    "quality_of_life": "✨"
+}
+
+# Display sections
+if st.session_state.data1 and st.session_state.data2:
     section_titles = {
         "education": "Education & Schools",
         "real_estate": "Real Estate Prices",
