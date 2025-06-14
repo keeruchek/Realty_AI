@@ -354,19 +354,14 @@ def test_census_api():
         st.error(f"Census API test error: {str(e)}")
         return False
 
-import pandas as pd
-
 def get_real_estate_data(city: str, state: str):
     try:
-        # Load the CSV file
         df = pd.read_csv('data/rexus_data.csv')
-        # Lowercase for matching
         df['Bldg City'] = df['Bldg City'].str.lower()
         df['Bldg State'] = df['Bldg State'].str.lower()
         city = city.lower()
         state = state.lower()
         city_df = df[(df['Bldg City'] == city) & (df['Bldg State'] == state)]
-
         if city_df.empty:
             return {
                 "median_price": "N/A",
@@ -376,23 +371,23 @@ def get_real_estate_data(city: str, state: str):
                 "market_health": "N/A"
             }
 
-        # Replace these column names with your actual CSV headers
-        median_price = city_df['Bldg ANSI Usable'].median()  # Example column
-        median_rent = 1536  # Replace if you have rent data
-        total_units = city_df.shape[0]
-        occupancy_rate = "N/A"  # Calculate if you have the data
-        market_health = "N/A"   # Calculate if you have the data
+        # Update these with your actual CSV column names!
+        median_price = city_df['HousePrice'].median()  # Replace with your column
+        median_rent = city_df['Rent'].median()         # Replace with your column
+        total_units = city_df['Units'].sum()           # Replace with your column
+        occupied_units = city_df['OccupiedUnits'].sum()  # Replace with your column
+        occupancy_rate = f"{100 * occupied_units / total_units:.0f}%" if total_units else "N/A"
+        market_health = "82/100"  # Replace with your logic if needed
 
         return {
             "median_price": f"${int(median_price):,}",
-            "median_rent": f"${median_rent:,}",
-            "total_units": f"{total_units:,}",
+            "median_rent": f"${int(median_rent):,}",
+            "total_units": f"{int(total_units):,}",
             "occupancy_rate": occupancy_rate,
             "market_health": market_health
         }
-
     except Exception as e:
-        st.error(f"Error fetching RexUS CSV data: {str(e)}")
+        st.error(f"Error: {e}")
         return {
             "median_price": "N/A",
             "median_rent": "N/A",
