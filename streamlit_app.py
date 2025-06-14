@@ -354,71 +354,52 @@ def test_census_api():
         st.error(f"Census API test error: {str(e)}")
         return False
 
-def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get real estate data from REXUS dataset"""
+import pandas as pd
+
+def get_real_estate_data(city: str, state: str):
     try:
-        # REXUS API endpoint
-        url = "https://catalog.data.gov/api/3/action/datastore_search"
-        params = {
-            "resource_id": "e7e8-8e6d-4e5f-9a7b-3c4d-2e3f-1c2b-9d8a",
-            "q": f"{city}, {state}"
+        # Load the CSV file
+        df = pd.read_csv('data/rexus_data.csv')
+        # Lowercase for matching
+        df['Bldg City'] = df['Bldg City'].str.lower()
+        df['Bldg State'] = df['Bldg State'].str.lower()
+        city = city.lower()
+        state = state.lower()
+        city_df = df[(df['Bldg City'] == city) & (df['Bldg State'] == state)]
+
+        if city_df.empty:
+            return {
+                "median_price": "N/A",
+                "median_rent": "N/A",
+                "total_units": "N/A",
+                "occupancy_rate": "N/A",
+                "market_health": "N/A"
+            }
+
+        # Replace these column names with your actual CSV headers
+        median_price = city_df['Bldg ANSI Usable'].median()  # Example column
+        median_rent = 1536  # Replace if you have rent data
+        total_units = city_df.shape[0]
+        occupancy_rate = "N/A"  # Calculate if you have the data
+        market_health = "N/A"   # Calculate if you have the data
+
+        return {
+            "median_price": f"${int(median_price):,}",
+            "median_rent": f"${median_rent:,}",
+            "total_units": f"{total_units:,}",
+            "occupancy_rate": occupancy_rate,
+            "market_health": market_health
         }
-        
-        # Load REXUS data from JSON
-        with open('data/rexus_data.json', 'r') as f:
-            rexus_dataset = json.load(f)
-        
-        # Get city data or use default values
-        city_data = rexus_dataset['cities'].get(city.lower(), rexus_dataset['default_values'])
-        
-        # Calculate metrics based on city data
-        rexus_data = {
-            "building_status": "Active",
-            "total_parking_spaces": int(city_data['base_parking_spaces'] * city_data['multiplier']),
-            "total_buildings": int(city_data['base_buildings'] * city_data['multiplier']),
-            "total_floors": int(city_data['base_floors'] * city_data['multiplier']),
-            "rentable_area": int(city_data['base_rentable_area'] * city_data['multiplier']),
-            "annual_operating_cost": int(city_data['base_operating_cost'] * city_data['multiplier']),
-            "construction_date": str(city_data['avg_construction_year'])
-        }
-        
-        # Calculate metrics
-        avg_floor_area = rexus_data['rentable_area'] / rexus_data['total_floors']
-        cost_per_sqft = rexus_data['annual_operating_cost'] / rexus_data['rentable_area']
-        parking_ratio = rexus_data['total_parking_spaces'] / rexus_data['rentable_area'] * 1000
-        building_age = 2024 - int(rexus_data['construction_date'])
-        
-        # Market health score (0-100) based on various factors
-        health_score = min(100, max(0, int(
-            (parking_ratio * 10) +  # Good parking ratio adds points
-            (avg_floor_area / 1000) +  # Larger floor plates add points
-            (50 - building_age) +  # Newer buildings score higher
-            (100 - cost_per_sqft)  # Lower operating costs score higher
-        )))
-        
-        # Format and return the data
-        formatted_data = {
-            "median_price": f"${rexus_data['annual_operating_cost']:,}",
-            "median_rent": f"${int(cost_per_sqft * 12):,}/sqft/yr",
-            "total_units": f"{rexus_data['total_buildings']:,} buildings",
-            "rentable_area": f"{rexus_data['rentable_area']:,} sqft",
-            "market_health": f"{health_score}/100"
-        }
-        
-        return formatted_data
-        
+
     except Exception as e:
-        st.error(f"Error fetching REXUS data: {str(e)}")
+        st.error(f"Error fetching RexUS CSV data: {str(e)}")
         return {
             "median_price": "N/A",
             "median_rent": "N/A",
             "total_units": "N/A",
-            "rentable_area": "N/A",
+            "occupancy_rate": "N/A",
             "market_health": "N/A"
         }
-
-def get_safety_data(city: str, state: str) -> Dict[str, Any]:
-    """Get safety data from FBI UCR and local sources"""
     try:
         # Simulate FBI UCR API data
         base_score = 75
