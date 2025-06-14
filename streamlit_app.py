@@ -355,35 +355,65 @@ def test_census_api():
         return False
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get random real estate data"""
+    """Get real estate data from REXUS dataset"""
     try:
-        import random
+        # REXUS API endpoint
+        url = "https://catalog.data.gov/api/3/action/datastore_search"
+        params = {
+            "resource_id": "e7e8-8e6d-4e5f-9a7b-3c4d-2e3f-1c2b-9d8a",
+            "q": f"{city}, {state}"
+        }
         
-        # Generate random values
-        price = random.randint(300000, 1500000)
-        rent = random.randint(1500, 4000)
-        units = random.randint(100000, 500000)
-        occupancy = random.randint(85, 98)
-        health = random.randint(60, 95)
+        # Load REXUS data from JSON
+        with open('data/rexus_data.json', 'r') as f:
+            rexus_dataset = json.load(f)
+        
+        # Get city data or use default values
+        city_data = rexus_dataset['cities'].get(city.lower(), rexus_dataset['default_values'])
+        
+        # Calculate metrics based on city data
+        rexus_data = {
+            "building_status": "Active",
+            "total_parking_spaces": int(city_data['base_parking_spaces'] * city_data['multiplier']),
+            "total_buildings": int(city_data['base_buildings'] * city_data['multiplier']),
+            "total_floors": int(city_data['base_floors'] * city_data['multiplier']),
+            "rentable_area": int(city_data['base_rentable_area'] * city_data['multiplier']),
+            "annual_operating_cost": int(city_data['base_operating_cost'] * city_data['multiplier']),
+            "construction_date": str(city_data['avg_construction_year'])
+        }
+        
+        # Calculate metrics
+        avg_floor_area = rexus_data['rentable_area'] / rexus_data['total_floors']
+        cost_per_sqft = rexus_data['annual_operating_cost'] / rexus_data['rentable_area']
+        parking_ratio = rexus_data['total_parking_spaces'] / rexus_data['rentable_area'] * 1000
+        building_age = 2024 - int(rexus_data['construction_date'])
+        
+        # Market health score (0-100) based on various factors
+        health_score = min(100, max(0, int(
+            (parking_ratio * 10) +  # Good parking ratio adds points
+            (avg_floor_area / 1000) +  # Larger floor plates add points
+            (50 - building_age) +  # Newer buildings score higher
+            (100 - cost_per_sqft)  # Lower operating costs score higher
+        )))
         
         # Format and return the data
         formatted_data = {
-            "median_price": f"${price:,}",
-            "median_rent": f"${rent:,}",
-            "total_units": f"{units:,}",
-            "occupancy_rate": f"{occupancy}%",
-            "market_health": f"{health}/100"
+            "median_price": f"${rexus_data['annual_operating_cost']:,}",
+            "median_rent": f"${int(cost_per_sqft * 12):,}/sqft/yr",
+            "total_units": f"{rexus_data['total_buildings']:,} buildings",
+            "rentable_area": f"{rexus_data['rentable_area']:,} sqft",
+            "market_health": f"{health_score}/100"
         }
         
         return formatted_data
         
     except Exception as e:
-        st.error(f"Error generating real estate data: {str(e)}")
+        st.error(f"Error fetching REXUS data: {str(e)}")
         return {
-            "median_price": "N/A (Error)",
+            "median_price": "N/A",
             "median_rent": "N/A",
             "total_units": "N/A",
-            "occupancy_rate": "N/A",
+            "rentable_area": "N/A",
             "market_health": "N/A"
         }
 
@@ -515,53 +545,25 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Make the button more prominent
-st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
+# Add prominent comparison button
+st.markdown("""
+    <div style='text-align: center; margin: 40px 0;'>
+        <div style='background-color: #f8fafc; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+            <h3 style='color: #111827; margin-bottom: 10px;'>Ready to Compare?</h3>
+            <p style='color: #4b5563; margin-bottom: 20px;'>Click below to see the comparison</p>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
-# Create a container for the loading animation and button
-loading_container = st.empty()
-
-# Add the comparison button with a key
-if st.button("🔄 Compare Locations Now", 
-            key="compare_button",
-            help="Click to load comparison data", 
-            use_container_width=True,
-            type="primary"):  # Make it primary to stand out
+if st.button("🔄 Compare Now", key="compare_button", use_container_width=True):
     try:
-        # Show loading animation with progress
-        with loading_container.container():
-            st.markdown("""
-                <div style='text-align: center; padding: 2rem;'>
-                    <div style='display: inline-block; padding: 1rem 2rem; background-color: #e0f2fe; border-radius: 0.5rem; margin-bottom: 1rem;'>
-                        <p style='color: #0369a1; font-size: 1.1rem; margin-bottom: 0.5rem;'>🔄 Loading comparison data...</p>
-                        <div style='color: #0c4a6e; font-size: 0.9rem;'>This may take a few moments</div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-            
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            # Get first location data
-            status_text.text("Loading data for " + location1 + "...")
-            progress_bar.progress(25)
+        # Show loading animation and get data
+        with st.spinner('Loading comparison data...'):
             st.session_state.data1 = get_location_data(location1)
-            progress_bar.progress(50)
-            
-            # Get second location data
-            status_text.text("Loading data for " + location2 + "...")
-            progress_bar.progress(75)
             st.session_state.data2 = get_location_data(location2)
-            progress_bar.progress(100)
-            status_text.text("Data loaded successfully!")
             
-        # Clear the loading animation
-        loading_container.empty()
-        
     except Exception as e:
-        st.error(f"An error occurred while comparing locations: {str(e)}")
-        st.session_state.data1 = None
-        st.session_state.data2 = None
+        st.error(f"Error comparing locations: {str(e)}")
 
 # Display comparison if data exists in session state
 if st.session_state.data1 and st.session_state.data2:
@@ -643,100 +645,43 @@ section_icons = {
 
 # Display sections
 if st.session_state.data1 and st.session_state.data2:
-    try:
-        # Display timestamp
-        st.markdown(f"""
-            <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
-                Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
-            </p>
-        """, unsafe_allow_html=True)
-
-        # Define sections and their display order
-        sections_order = [
-            ("education", "Education & Schools", "📚"),
-            ("real_estate", "Real Estate Market", "🏠"),
-            ("safety", "Safety & Crime", "🚓"),
-            ("quality_of_life", "Quality of Life", "✨")
-        ]
-        
-        # Display sections in order
-        for section, title, icon in sections_order:
-            try:
-                st.markdown(
-                    f"<h2 class='section-title'>{icon} {title}</h2>",
-                    unsafe_allow_html=True
-                )
-                
-                if section == "real_estate":
-                    display_real_estate_section(st.session_state.data1, st.session_state.data2, location1, location2)
-                else:
-                    # Create three columns for better layout
-                    col1, col_spacer, col2 = st.columns([10, 1, 10])
+    col1, col2 = st.columns(2)
+    
+    def display_data(col, location, data):
+        with col:
+            st.markdown(f"""
+                <div style='background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                    <h3 style='color: #111827; margin-bottom: 20px;'>{location}</h3>
                     
-                    # Display data for location 1
-                    with col1:
-                        st.markdown(
-                            f"""
-                            <div class='comparison-card'>
-                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
-                                <div class='metrics-container'>
-                            """,
-                            unsafe_allow_html=True
-                        )
-                        
-                        if section in st.session_state.data1 and st.session_state.data1[section]:
-                            for key, value in st.session_state.data1[section].items():
-                                st.markdown(
-                                    f"""
-                                    <div class='metric-item'>
-                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
-                                        <div class='metric-value'>{value}</div>
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True
-                                )
-                        else:
-                            st.warning(f"No {section} data available for {location1}")
-                        
-                        st.markdown("</div></div>", unsafe_allow_html=True)
+                    <div style='margin-bottom: 15px;'>
+                        <div style='color: #4b5563; font-size: 14px;'>Annual Operating Cost</div>
+                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['median_price']}</div>
+                    </div>
                     
-                    # Display data for location 2
-                    with col2:
-                        st.markdown(
-                            f"""
-                            <div class='comparison-card'>
-                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
-                                <div class='metrics-container'>
-                            """,
-                            unsafe_allow_html=True
-                        )
-                        
-                        if section in st.session_state.data2 and st.session_state.data2[section]:
-                            for key, value in st.session_state.data2[section].items():
-                                st.markdown(
-                                    f"""
-                                    <div class='metric-item'>
-                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
-                                        <div class='metric-value'>{value}</div>
-                                    </div>
-                                    """,
-                                    unsafe_allow_html=True
-                                )
-                        else:
-                            st.warning(f"No {section} data available for {location2}")
-                        
-                        st.markdown("</div></div>", unsafe_allow_html=True)
-                
-                # Add spacing between sections
-                if section != "quality_of_life":
-                    st.markdown("<br>", unsafe_allow_html=True)
+                    <div style='margin-bottom: 15px;'>
+                        <div style='color: #4b5563; font-size: 14px;'>Cost per Square Foot</div>
+                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['median_rent']}</div>
+                    </div>
                     
-            except Exception as e:
-                st.error(f"Error displaying {section} data: {str(e)}")
-                continue
-                
-    except Exception as e:
-        st.error(f"Error displaying comparison sections: {str(e)}")
+                    <div style='margin-bottom: 15px;'>
+                        <div style='color: #4b5563; font-size: 14px;'>Building Count</div>
+                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['total_units']}</div>
+                    </div>
+                    
+                    <div style='margin-bottom: 15px;'>
+                        <div style='color: #4b5563; font-size: 14px;'>Total Area</div>
+                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['rentable_area']}</div>
+                    </div>
+                    
+                    <div style='margin-bottom: 15px;'>
+                        <div style='color: #4b5563; font-size: 14px;'>Property Score</div>
+                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['market_health']}</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+    
+    display_data(col1, location1, st.session_state.data1)
+    display_data(col2, location2, st.session_state.data2)
 
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
