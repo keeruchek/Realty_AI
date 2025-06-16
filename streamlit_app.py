@@ -354,47 +354,41 @@ def test_census_api():
         st.error(f"Census API test error: {str(e)}")
         return False
 
-def get_real_estate_data(city: str, state: str):
+def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
+    """Get random real estate data"""
     try:
-        df = pd.read_csv('data_gov_bldg_rexus.csv')
-        df['Bldg City'] = df['Bldg City'].str.lower()
-        df['Bldg State'] = df['Bldg State'].str.lower()
-        city = city.lower()
-        state = state.lower()
-        city_df = df[(df['Bldg City'] == city) & (df['Bldg State'] == state)]
-        if city_df.empty:
-            return {
-                "median_price": "N/A",
-                "median_rent": "N/A",
-                "total_units": "N/A",
-                "occupancy_rate": "N/A",
-                "market_health": "N/A"
-            }
-
-        median_size = city_df['Bldg ANSI Usable'].median()
-        total_parking = city_df['Total Parking Spaces'].sum()
-        building_count = city_df.shape[0]
-        owned = city_df[city_df['Owned/Leased'] == 'OWNED'].shape[0]
-        leased = city_df[city_df['Owned/Leased'] == 'LEASED'].shape[0]
-        occupancy_rate = f"{100 * occupied_units / total_units:.0f}%" if total_units else "N/A"
-        market_health = "82/100"  # Replace with your logic if needed
-
-        return {
-            "median_price": f"${int(median_price):,}",
-            "median_rent": f"${int(median_rent):,}",
-            "total_units": f"{int(total_units):,}",
-            "occupancy_rate": occupancy_rate,
-            "market_health": market_health
+        import random
+        
+        # Generate random values
+        price = random.randint(300000, 1500000)
+        rent = random.randint(1500, 4000)
+        units = random.randint(100000, 500000)
+        occupancy = random.randint(85, 98)
+        health = random.randint(60, 95)
+        
+        # Format and return the data
+        formatted_data = {
+            "median_price": f"${price:,}",
+            "median_rent": f"${rent:,}",
+            "total_units": f"{units:,}",
+            "occupancy_rate": f"{occupancy}%",
+            "market_health": f"{health}/100"
         }
+        
+        return formatted_data
+        
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error generating real estate data: {str(e)}")
         return {
-            "median_price": "N/A",
+            "median_price": "N/A (Error)",
             "median_rent": "N/A",
             "total_units": "N/A",
             "occupancy_rate": "N/A",
             "market_health": "N/A"
         }
+
+def get_safety_data(city: str, state: str) -> Dict[str, Any]:
+    """Get safety data from FBI UCR and local sources"""
     try:
         # Simulate FBI UCR API data
         base_score = 75
@@ -521,25 +515,53 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Add prominent comparison button
-st.markdown("""
-    <div style='text-align: center; margin: 40px 0;'>
-        <div style='background-color: #f8fafc; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-            <h3 style='color: #111827; margin-bottom: 10px;'>Ready to Compare?</h3>
-            <p style='color: #4b5563; margin-bottom: 20px;'>Click below to see the comparison</p>
-        </div>
-    </div>
-""", unsafe_allow_html=True)
+# Make the button more prominent
+st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
-if st.button("🔄 Compare Now", key="compare_button", use_container_width=True):
+# Create a container for the loading animation and button
+loading_container = st.empty()
+
+# Add the comparison button with a key
+if st.button("🔄 Compare Locations Now", 
+            key="compare_button",
+            help="Click to load comparison data", 
+            use_container_width=True,
+            type="primary"):  # Make it primary to stand out
     try:
-        # Show loading animation and get data
-        with st.spinner('Loading comparison data...'):
-            st.session_state.data1 = get_location_data(location1)
-            st.session_state.data2 = get_location_data(location2)
+        # Show loading animation with progress
+        with loading_container.container():
+            st.markdown("""
+                <div style='text-align: center; padding: 2rem;'>
+                    <div style='display: inline-block; padding: 1rem 2rem; background-color: #e0f2fe; border-radius: 0.5rem; margin-bottom: 1rem;'>
+                        <p style='color: #0369a1; font-size: 1.1rem; margin-bottom: 0.5rem;'>🔄 Loading comparison data...</p>
+                        <div style='color: #0c4a6e; font-size: 0.9rem;'>This may take a few moments</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
             
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            # Get first location data
+            status_text.text("Loading data for " + location1 + "...")
+            progress_bar.progress(25)
+            st.session_state.data1 = get_location_data(location1)
+            progress_bar.progress(50)
+            
+            # Get second location data
+            status_text.text("Loading data for " + location2 + "...")
+            progress_bar.progress(75)
+            st.session_state.data2 = get_location_data(location2)
+            progress_bar.progress(100)
+            status_text.text("Data loaded successfully!")
+            
+        # Clear the loading animation
+        loading_container.empty()
+        
     except Exception as e:
-        st.error(f"Error comparing locations: {str(e)}")
+        st.error(f"An error occurred while comparing locations: {str(e)}")
+        st.session_state.data1 = None
+        st.session_state.data2 = None
 
 # Display comparison if data exists in session state
 if st.session_state.data1 and st.session_state.data2:
@@ -621,43 +643,100 @@ section_icons = {
 
 # Display sections
 if st.session_state.data1 and st.session_state.data2:
-    col1, col2 = st.columns(2)
-    
-    def display_data(col, location, data):
-        with col:
-            st.markdown(f"""
-                <div style='background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-                    <h3 style='color: #111827; margin-bottom: 20px;'>{location}</h3>
+    try:
+        # Display timestamp
+        st.markdown(f"""
+            <p style='text-align: center; color: #6b7280; font-size: 0.875rem; margin: 2rem 0;'>
+                Data updated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}
+            </p>
+        """, unsafe_allow_html=True)
+
+        # Define sections and their display order
+        sections_order = [
+            ("education", "Education & Schools", "📚"),
+            ("real_estate", "Real Estate Market", "🏠"),
+            ("safety", "Safety & Crime", "🚓"),
+            ("quality_of_life", "Quality of Life", "✨")
+        ]
+        
+        # Display sections in order
+        for section, title, icon in sections_order:
+            try:
+                st.markdown(
+                    f"<h2 class='section-title'>{icon} {title}</h2>",
+                    unsafe_allow_html=True
+                )
+                
+                if section == "real_estate":
+                    display_real_estate_section(st.session_state.data1, st.session_state.data2, location1, location2)
+                else:
+                    # Create three columns for better layout
+                    col1, col_spacer, col2 = st.columns([10, 1, 10])
                     
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Annual Operating Cost</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['median_price']}</div>
-                    </div>
+                    # Display data for location 1
+                    with col1:
+                        st.markdown(
+                            f"""
+                            <div class='comparison-card'>
+                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location1}</h3>
+                                <div class='metrics-container'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        if section in st.session_state.data1 and st.session_state.data1[section]:
+                            for key, value in st.session_state.data1[section].items():
+                                st.markdown(
+                                    f"""
+                                    <div class='metric-item'>
+                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                                        <div class='metric-value'>{value}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.warning(f"No {section} data available for {location1}")
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
                     
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Cost per Square Foot</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['median_rent']}</div>
-                    </div>
+                    # Display data for location 2
+                    with col2:
+                        st.markdown(
+                            f"""
+                            <div class='comparison-card'>
+                                <h3 style='color: #111827; margin-bottom: 1rem;'>{location2}</h3>
+                                <div class='metrics-container'>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                        
+                        if section in st.session_state.data2 and st.session_state.data2[section]:
+                            for key, value in st.session_state.data2[section].items():
+                                st.markdown(
+                                    f"""
+                                    <div class='metric-item'>
+                                        <div class='metric-title'>{key.replace('_', ' ').title()}</div>
+                                        <div class='metric-value'>{value}</div>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.warning(f"No {section} data available for {location2}")
+                        
+                        st.markdown("</div></div>", unsafe_allow_html=True)
+                
+                # Add spacing between sections
+                if section != "quality_of_life":
+                    st.markdown("<br>", unsafe_allow_html=True)
                     
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Building Count</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['total_units']}</div>
-                    </div>
-                    
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Total Area</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['rentable_area']}</div>
-                    </div>
-                    
-                    <div style='margin-bottom: 15px;'>
-                        <div style='color: #4b5563; font-size: 14px;'>Property Score</div>
-                        <div style='color: #111827; font-size: 20px; font-weight: 600;'>{data['real_estate']['market_health']}</div>
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-    
-    display_data(col1, location1, st.session_state.data1)
-    display_data(col2, location2, st.session_state.data2)
+            except Exception as e:
+                st.error(f"Error displaying {section} data: {str(e)}")
+                continue
+                
+    except Exception as e:
+        st.error(f"Error displaying comparison sections: {str(e)}")
 
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
@@ -698,20 +777,21 @@ else:
 # Add a submit button to prevent auto-refresh
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
-        response = f"Based on the real estate data from the CSV for {location1} and {location2}, "
-        # Only use real estate data from CSV for chat responses
-        if "price" in user_question.lower() or "cost" in user_question.lower() or "house" in user_question.lower():
+        response = f"Based on the comparison between {location1} and {location2}, "
+        if "school" in user_question.lower():
+            rating1 = float(st.session_state.data1['education']['school_rating'].split('/')[0])
+            rating2 = float(st.session_state.data2['education']['school_rating'].split('/')[0])
+            better_location = location1 if rating1 > rating2 else location2
+            response += f"{better_location} has better schools with a rating of {st.session_state.data1['education']['school_rating'] if better_location == location1 else st.session_state.data2['education']['school_rating']}."
+        elif "safe" in user_question.lower() or "crime" in user_question.lower():
+            safety1 = float(st.session_state.data1['safety']['safety_score'].strip('%'))
+            safety2 = float(st.session_state.data2['safety']['safety_score'].strip('%'))
+            better_location = location1 if safety1 > safety2 else location2
+            response += f"{better_location} has a higher safety score of {st.session_state.data1['safety']['safety_score'] if better_location == location1 else st.session_state.data2['safety']['safety_score']}."
+        elif "cost" in user_question.lower() or "price" in user_question.lower() or "house" in user_question.lower():
             response += f"The median home price in {location1} is {st.session_state.data1['real_estate']['median_price']} compared to {st.session_state.data2['real_estate']['median_price']} in {location2}."
-        elif "rent" in user_question.lower():
-            response += f"The median rent in {location1} is {st.session_state.data1['real_estate']['median_rent']} compared to {st.session_state.data2['real_estate']['median_rent']} in {location2}."
-        elif "units" in user_question.lower() or "housing" in user_question.lower():
-            response += f"{location1} has {st.session_state.data1['real_estate']['total_units']} total housing units, while {location2} has {st.session_state.data2['real_estate']['total_units']}."
-        elif "occupancy" in user_question.lower():
-            response += f"The occupancy rate in {location1} is {st.session_state.data1['real_estate']['occupancy_rate']} compared to {st.session_state.data2['real_estate']['occupancy_rate']} in {location2}."
-        elif "market" in user_question.lower() or "health" in user_question.lower():
-            response += f"The market health score for {location1} is {st.session_state.data1['real_estate']['market_health']} and for {location2} is {st.session_state.data2['real_estate']['market_health']}."
         else:
-            response += "both locations have unique real estate characteristics. For detailed info, please refer to the comparison above."
+            response += "both locations have their unique advantages. For specific details, please refer to the comparison above."
         
         # Add to chat history
         st.session_state.chat_history.append({"question": user_question, "answer": response})
