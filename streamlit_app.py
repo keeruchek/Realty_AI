@@ -356,7 +356,7 @@ def test_census_api():
 
 def get_real_estate_data(city: str, state: str):
     try:
-        df = pd.read_csv('data/rexus_data.csv')
+        df = pd.read_csv('data_gov_bldg_rexus.csv')
         df['Bldg City'] = df['Bldg City'].str.lower()
         df['Bldg State'] = df['Bldg State'].str.lower()
         city = city.lower()
@@ -371,11 +371,10 @@ def get_real_estate_data(city: str, state: str):
                 "market_health": "N/A"
             }
 
-        # Update these with your actual CSV column names!
-        median_price = city_df['HousePrice'].median()  # Replace with your column
-        median_rent = city_df['Rent'].median()         # Replace with your column
-        total_units = city_df['Units'].sum()           # Replace with your column
-        occupied_units = city_df['OccupiedUnits'].sum()  # Replace with your column
+        median_price = city_df['HousePrice'].median()  # Change 'HousePrice' if needed
+        median_rent = city_df['Rent'].median()         # Change 'Rent' if needed
+        total_units = city_df['Units'].sum()           # Change 'Units' if needed
+        occupied_units = city_df['OccupiedUnits'].sum()  # Change 'OccupiedUnits' if needed
         occupancy_rate = f"{100 * occupied_units / total_units:.0f}%" if total_units else "N/A"
         market_health = "82/100"  # Replace with your logic if needed
 
