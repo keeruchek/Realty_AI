@@ -371,10 +371,11 @@ def get_real_estate_data(city: str, state: str):
                 "market_health": "N/A"
             }
 
-        median_price = city_df['HousePrice'].median()  # Change 'HousePrice' if needed
-        median_rent = city_df['Rent'].median()         # Change 'Rent' if needed
-        total_units = city_df['Units'].sum()           # Change 'Units' if needed
-        occupied_units = city_df['OccupiedUnits'].sum()  # Change 'OccupiedUnits' if needed
+        median_size = city_df['Bldg ANSI Usable'].median()
+        total_parking = city_df['Total Parking Spaces'].sum()
+        building_count = city_df.shape[0]
+        owned = city_df[city_df['Owned/Leased'] == 'OWNED'].shape[0]
+        leased = city_df[city_df['Owned/Leased'] == 'LEASED'].shape[0]' 
         occupancy_rate = f"{100 * occupied_units / total_units:.0f}%" if total_units else "N/A"
         market_health = "82/100"  # Replace with your logic if needed
 
