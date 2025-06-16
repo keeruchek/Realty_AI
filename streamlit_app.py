@@ -8,6 +8,7 @@ import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import openai
+from some_module import semantic_retrieve_rexus
 
 # Page configuration
 st.set_page_config(
@@ -515,9 +516,17 @@ def get_education_data(city: str, state: str) -> Dict[str, Any]:
             "school_rating": "7.0/10",
             "total_schools": "35"
         }
-retrieved_rows = semantic_retrieve_rexus(
-            user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
-        )
+def semantic_retrieve_rexus(user_question, df_rexus, rexus_embeddings, emb_model, top_k=3):
+    """
+    Retrieve the top K rows from df_rexus most semantically similar to the user_question.
+    """
+    # Encode the user question
+    question_emb = emb_model.encode([user_question])
+    # Compute cosine similarity
+    similarities = np.dot(rexus_embeddings, question_emb.T).squeeze()
+    # Get top K indices
+    top_indices = similarities.argsort()[-top_k:][::-1]
+    return df_rexus.iloc[top_indices]
 # Initialize data in session state
 if 'data1' not in st.session_state:
     st.session_state.data1 = None
