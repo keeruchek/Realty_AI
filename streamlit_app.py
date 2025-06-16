@@ -600,48 +600,26 @@ def display_real_estate_section(data1, data2, location1, location2):
     col1, col2 = st.columns(2)
     
     def display_market_metrics(data, location):
-        try:
-            st.markdown(f"""
-                <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                    <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
-                    
-                    <div style='margin-bottom: 1.5rem;'>
-                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>💰 Median House Price</h5>
-                        <div style='color: #111827; font-size: 1.5rem; font-weight: 600;'>
-                            {data.get('real_estate', {}).get('median_price', 'N/A')}
-                        </div>
-                    </div>
-                    
-                    <div style='margin-bottom: 1.5rem;'>
-                        <h5 style='color: #4b5563; margin-bottom: 0.5rem;'>🏢 Median Rent</h5>
-                        <div style='color: #111827; font-size: 1.25rem; font-weight: 600;'>
-                            {data.get('real_estate', {}).get('median_rent', 'N/A')}
-                        </div>
-                    </div>
-                    
-                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;'>
-                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('total_units', 'N/A')}</div>
-                            <div style='color: #6b7280; font-size: 0.875rem;'>Total Housing Units</div>
-                        </div>
-                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('occupancy_rate', 'N/A')}</div>
-                            <div style='color: #6b7280; font-size: 0.875rem;'>Occupancy Rate</div>
-                        </div>
-                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('ownership_rate', 'N/A')}</div>
-                            <div style='color: #6b7280; font-size: 0.875rem;'>Ownership Rate</div>
-                        </div>
-                        <div style='text-align: center; padding: 0.75rem; background-color: #f8fafc; border-radius: 0.5rem;'>
-                            <div style='color: #111827; font-weight: 600;'>{data.get('real_estate', {}).get('market_health', 'N/A')}</div>
-                            <div style='color: #6b7280; font-size: 0.875rem;'>Market Health</div>
-                        </div>
-                    </div>
+    try:
+        real_estate = data.get('real_estate', {})
+        st.markdown(f"""
+            <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
+                <div class='metrics-container'>
+                    <div class='metric-item'><span class='metric-title'>Address:</span> <span class='metric-value'>{real_estate.get('first_address', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Building Status:</span> <span class='metric-value'>{real_estate.get('building_status', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Property Type:</span> <span class='metric-value'>{real_estate.get('property_type', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Usable SqFt:</span> <span class='metric-value'>{real_estate.get('usable_sqft', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Parking Spaces:</span> <span class='metric-value'>{real_estate.get('total_parking', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Owned/Leased:</span> <span class='metric-value'>{real_estate.get('owned_leased', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Construction Date:</span> <span class='metric-value'>{real_estate.get('construction_date', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Historical Status:</span> <span class='metric-value'>{real_estate.get('historical_status', 'N/A')}</span></div>
+                    <div class='metric-item'><span class='metric-title'>ABA Accessibility:</span> <span class='metric-value'>{real_estate.get('aba_accessibility', 'N/A')}</span></div>
                 </div>
-            """, unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Error displaying market metrics: {str(e)}")
-    
+            </div>
+        """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error displaying market metrics: {str(e)}")
     with col1:
         display_market_metrics(data1, location1)
     
