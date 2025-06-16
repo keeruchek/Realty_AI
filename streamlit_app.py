@@ -359,23 +359,54 @@ def test_census_api():
         return False
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get avg rent for 'february 2011' from price.csv for the given city and state"""
+    """Get real estate data from data_gov_bldg_rexus.csv for the given city and state"""
     try:
-        df = pd.read_csv("price.csv", dtype=str)
+        df = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+        # Filter by city and state (ignore case and possible spaces)
         city = city.strip().upper()
         state = state.strip().upper()
-        matches = df[
-            (df["city"].str.strip().str.upper() == city) &
-            (df["state"].str.strip().str.upper() == state)
-        ]
+        matches = df[(df["Bldg City"].str.strip().str.upper() == city) & (df["Bldg State"].str.strip().str.upper() == state)]
+        
         if matches.empty:
-            return {"avg_rent_feb_2011": "No data"}
-        matches["february 2011"] = matches["february 2011"].astype(float)
-        avg_rent = matches["february 2011"].mean()
-        return {"avg_rent_feb_2011": f"{avg_rent:.2f}"}
+            return {
+                "median_price": "No data",
+                "median_rent": "No data",
+                "total_units": "No data",
+                "occupancy_rate": "No data",
+                "market_health": "No data",
+                "first_address": "No building found in database."
+            }
+        else:
+            # For demo, just take the first matching row
+            row = matches.iloc[0]
+            return {
+                "first_address": row["Bldg Address1"],
+                "building_status": row["Bldg Status"],
+                "property_type": row["Property Type"],
+                "usable_sqft": row["Bldg ANSI Usable"],
+                "total_parking": row["Total Parking Spaces"],
+                "owned_leased": row["Owned/Leased"],
+                "construction_date": row["Construction Date"],
+                "historical_status": row["Historical Status"],
+                "aba_accessibility": row.get("ABA Accessibility Flag", "Unknown"),
+                "city": row["Bldg City"],
+                "state": row["Bldg State"]
+            }
     except Exception as e:
         st.error(f"Error reading real estate data from CSV: {str(e)}")
-        return {"avg_rent_feb_2011": "Error"}
+        return {
+            "first_address": "Error",
+            "building_status": "Error",
+            "property_type": "Error",
+            "usable_sqft": "Error",
+            "total_parking": "Error",
+            "owned_leased": "Error",
+            "construction_date": "Error",
+            "historical_status": "Error",
+            "aba_accessibility": "Error",
+            "city": city,
+            "state": state
+        }
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
     """Get safety data from FBI UCR and local sources"""
     try:
@@ -576,26 +607,37 @@ if st.session_state.data1 and st.session_state.data2:
 def display_real_estate_section(data1, data2, location1, location2):
     st.markdown("""
         <h2 style='text-align: center; color: #111827; margin: 2rem 0 1rem;'>
-            🏠 Real Estate Market Data
+            🏠 Best available home
         </h2>
     """, unsafe_allow_html=True)
+    
     col1, col2 = st.columns(2)
-
-    def show_avg_rent(data, location):
-        avg_rent = data.get('real_estate', {}).get('avg_rent_feb_2011', 'N/A')
-        st.markdown(f"""
-            <div class='comparison-card'>
-                <h3 style='color: #111827; margin-bottom: 1rem;'>{location}</h3>
-                <div class='metrics-container'>
-                    <div class='metric-item'><span class='metric-title'>Avg Rent (Feb 2011):</span> <span class='metric-value'>{avg_rent}</span></div>
+    
+    def display_market_metrics(data, location):
+        try:
+            real_estate = data.get('real_estate', {})
+            st.markdown(f"""
+                <div style='background-color: white; padding: 1.5rem; border-radius: 0.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                    <h4 style='color: #111827; margin-bottom: 1rem;'>{location}</h4>
+                    <div class='metrics-container'>
+                        <div class='metric-item'><span class='metric-title'>Address:</span> <span class='metric-value'>{real_estate.get('first_address', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Building Status:</span> <span class='metric-value'>{real_estate.get('building_status', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Property Type:</span> <span class='metric-value'>{real_estate.get('property_type', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Usable SqFt:</span> <span class='metric-value'>{real_estate.get('usable_sqft', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Parking Spaces:</span> <span class='metric-value'>{real_estate.get('total_parking', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Owned/Leased:</span> <span class='metric-value'>{real_estate.get('owned_leased', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Construction Date:</span> <span class='metric-value'>{real_estate.get('construction_date', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>Historical Status:</span> <span class='metric-value'>{real_estate.get('historical_status', 'N/A')}</span></div>
+                        <div class='metric-item'><span class='metric-title'>ABA Accessibility:</span> <span class='metric-value'>{real_estate.get('aba_accessibility', 'N/A')}</span></div>
+                    </div>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
-
+            """, unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Error displaying market metrics: {str(e)}")
     with col1:
-        show_avg_rent(data1, location1)
+        display_market_metrics(data1, location1)
     with col2:
-        show_avg_rent(data2, location2)
+        display_market_metrics(data2, location2)
     
     def display_market_metrics(data, location):
         try:
