@@ -361,7 +361,7 @@ def test_census_api():
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
     """Get real estate data from data_gov_bldg_rexus.csv for the given city and state"""
     try:
-        df = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+        df = pd.read_csv("price.csv", dtype=str)
         # Filter by city and state (ignore case and possible spaces)
         city = city.strip().upper()
         state = state.strip().upper()
@@ -748,7 +748,7 @@ if st.session_state.data1 and st.session_state.data2:
 # --- Initialization for AI Assistant (Chatbot) ---
 
 # 1. Load DataFrame (adjust the path as needed)
-df_rexus = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+df_rexus = pd.read_csv("price.csv", dtype=str)
 
 # 2. Load or compute embeddings for address/city/state columns
 emb_model = SentenceTransformer('all-MiniLM-L6-v2')
