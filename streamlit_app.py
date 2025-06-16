@@ -10,7 +10,7 @@ from sentence_transformers import SentenceTransformer
 import openai
 
 
-# Page configuration
+# Page config
 st.set_page_config(
     page_title="US Neighborhood Comparison",
     page_icon="🏘️",
@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Helper functions for trend indicators
+# trend indicators
 def trend_indicator(value: str) -> str:
     """Generate HTML for trend indicators with arrows and colors"""
     try:
@@ -33,14 +33,14 @@ def trend_indicator(value: str) -> str:
         # Define colors and arrows based on trend and magnitude
         if is_positive:
             if magnitude > 10:
-                color = "#15803d"  # dark green for strong positive
+                color = "#15803d"  
                 arrow = "↑↑"
             else:
-                color = "#22c55e"  # light green for moderate positive
+                color = "#22c55e"  
                 arrow = "↑"
         else:
             if magnitude > 10:
-                color = "#b91c1c"  # dark red for strong negative
+                color = "#b91c1c"  
                 arrow = "↓↓"
             else:
                 color = "#ef4444"  # light red for moderate negative
@@ -520,7 +520,7 @@ def semantic_retrieve_rexus(user_question, df_rexus, rexus_embeddings, emb_model
     """
     Retrieve the top K rows from df_rexus most semantically similar to the user_question.
     """
-    # Encode the user question
+
     question_emb = emb_model.encode([user_question])
     # Compute cosine similarity
     similarities = np.dot(rexus_embeddings, question_emb.T).squeeze()
@@ -533,7 +533,7 @@ if 'data1' not in st.session_state:
 if 'data2' not in st.session_state:
     st.session_state.data2 = None
 
-# Add prominent comparison section
+# prominent comparison section
 st.markdown("""
     <div style='text-align: center; background-color: #f0f9ff; padding: 2rem; border-radius: 1rem; margin: 1rem 0; border: 2px solid #bae6fd; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);'>
         <h3 style='color: #0369a1; font-size: 1.5rem; font-weight: 600; margin-bottom: 1rem;'>
@@ -548,17 +548,17 @@ st.markdown("""
 # Make the button more prominent
 st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
 
-# Create a container for the loading animation and button
+# container for the loading animation and button
 loading_container = st.empty()
 
-# Add the comparison button with a key
+# comparison button with a key
 if st.button("🔄 Compare Locations Now", 
             key="compare_button",
             help="Click to load comparison data", 
             use_container_width=True,
             type="primary"):  # Make it primary to stand out
     try:
-        # Show loading animation with progress
+        # loading animation with progress
         with loading_container.container():
             st.markdown("""
                 <div style='text-align: center; padding: 2rem;'>
@@ -685,7 +685,7 @@ if st.session_state.data1 and st.session_state.data2:
             </p>
         """, unsafe_allow_html=True)
 
-        # Define sections and their display order
+        # sections and their display order
         sections_order = [
             ("education", "Education & Schools", "📚"),
             ("real_estate", "Real Estate Market", "🏠"),
@@ -693,7 +693,7 @@ if st.session_state.data1 and st.session_state.data2:
             ("quality_of_life", "Quality of Life", "✨")
         ]
         
-        # Display sections in order
+        # sections in order
         for section, title, icon in sections_order:
             try:
                 st.markdown(
@@ -704,7 +704,7 @@ if st.session_state.data1 and st.session_state.data2:
                 if section == "real_estate":
                     display_real_estate_section(st.session_state.data1, st.session_state.data2, location1, location2)
                 else:
-                    # Create three columns for better layout
+                    # three columns for better layout
                     col1, col_spacer, col2 = st.columns([10, 1, 10])
                     
                     # Display data for location 1
@@ -773,22 +773,22 @@ if st.session_state.data1 and st.session_state.data2:
         st.error(f"Error displaying comparison sections: {str(e)}")
 # --- Initialization for AI Assistant (Chatbot) ---
 
-# 1. Load DataFrame (adjust the path as needed)
+# DataFrame (adjust the path as needed)
 df_rexus = pd.read_csv("price.csv", dtype=str)
 
-# 2. Load or compute embeddings for address/city/state columns
+# embeddings for address/city/state columns
 emb_model = SentenceTransformer('all-MiniLM-L6-v2')
 df_rexus = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
-# Compute embeddings for the address+city+state columns
+# Computing embeddings for the address+city+state columns
 rexus_embeddings = emb_model.encode(
     df_rexus["Bldg Address1"] + " " + df_rexus["Bldg City"] + " " + df_rexus["Bldg State"]
 )
-# Add chatbot interface in sidebar with improved styling
+# chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
     <h2 style='color: #111827; margin-bottom: 1rem;'>🤖 AI Assistant</h2>
 """, unsafe_allow_html=True)
 
-# Initialize chat history in session state
+# chat history in session state
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
@@ -812,13 +812,13 @@ user_question = st.sidebar.text_input(
 retrieved_rows = semantic_retrieve_rexus(
     user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
 )
-# Add a submit button to prevent auto-refresh
+# submit button to prevent auto-refresh
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
         # 1. Retrieve top relevant building rows using semantic search
         
 
-        # 2. Build the context for the LLM
+        # 2. context for the LLM
         context_snippets = []
         for idx, row in retrieved_rows.iterrows():
             snippet = (
@@ -831,7 +831,7 @@ if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_
             context_snippets.append(snippet)
         context = "\n".join(context_snippets)
 
-        # 3. Compose prompt for the LLM
+        # prompt for the LLM
         prompt = (
             "You are an expert assistant answering questions about US government buildings. "
             "Use ONLY the data provided below to answer the user's question. If the answer is not in the data, say so.\n\n"
@@ -840,7 +840,7 @@ if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_
             "Answer:"
         )
 
-        # 4. Call OpenAI for an answer
+        # OpenAI for an answer
         try:
             completion = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
@@ -852,7 +852,7 @@ if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_
         except Exception as e:
             response = f"Error with OpenAI API: {e}"
 
-        # 5. Add to chat history
+        # Add to chat history
         st.session_state.chat_history.append({"question": user_question, "answer": response})
 
     elif user_question:
