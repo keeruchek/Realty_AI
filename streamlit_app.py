@@ -5,6 +5,9 @@ from datetime import datetime
 import plotly.express as px
 from typing import Dict, Any
 import os
+import numpy as np
+from sentence_transformers import SentenceTransformer
+import openai
 
 # Page configuration
 st.set_page_config(
@@ -771,47 +774,50 @@ else:
 # Add a submit button to prevent auto-refresh
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
-        # Combine both location data into a list for searching
-        import re
-        df = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
-        result_rows = []
+        # 1. Retrieve top relevant building rows using semantic search
+        retrieved_rows = semantic_retrieve_rexus(
+            user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
+        )
 
-        # Try to find any building matching keywords in the question
-        pattern = re.compile(re.escape(user_question), re.IGNORECASE)
-        # Search all columns for the question string
-        for idx, row in df.iterrows():
-            if any(pattern.search(str(val)) for val in row.values):
-                result_rows.append(row)
+        # 2. Build the context for the LLM
+        context_snippets = []
+        for idx, row in retrieved_rows.iterrows():
+            snippet = (
+                f"Address: {row['Bldg Address1']}, {row['Bldg City']}, {row['Bldg State']} | "
+                f"Status: {row['Bldg Status']} | Type: {row['Property Type']} | "
+                f"Usable SqFt: {row['Bldg ANSI Usable']} | Parking: {row['Total Parking Spaces']} | "
+                f"Owned/Leased: {row['Owned/Leased']} | Built: {row['Construction Date']} | "
+                f"Historical: {row['Historical Status']} | ABA Accessibility: {row.get('ABA Accessibility Flag', 'Unknown')}"
+            )
+            context_snippets.append(snippet)
+        context = "\n".join(context_snippets)
 
-        # If no direct match, try to be helpful by showing all buildings in both compared cities
-        if not result_rows:
-            city1 = st.session_state.data1['real_estate'].get('city', '').upper()
-            city2 = st.session_state.data2['real_estate'].get('city', '').upper()
-            matches = df[df["Bldg City"].str.strip().str.upper().isin([city1, city2])]
-            if not matches.empty:
-                result_rows = [row for idx, row in matches.iterrows()]
+        # 3. Compose prompt for the LLM
+        prompt = (
+            "You are an expert assistant answering questions about US government buildings. "
+            "Use ONLY the data provided below to answer the user's question. If the answer is not in the data, say so.\n\n"
+            f"Building Data:\n{context}\n\n"
+            f"User Question: {user_question}\n"
+            "Answer:"
+        )
 
-        if result_rows:
-            # Show up to 3 results
-            answer = ""
-            for row in result_rows[:3]:
-                answer += f"- **Address:** {row['Bldg Address1']}, {row['Bldg City']}, {row['Bldg State']} ({row['Bldg Status']})\n"
-                answer += f"  - Property Type: {row['Property Type']}\n"
-                answer += f"  - Usable SqFt: {row['Bldg ANSI Usable']}\n"
-                answer += f"  - Parking Spaces: {row['Total Parking Spaces']}\n"
-                answer += f"  - Owned/Leased: {row['Owned/Leased']}\n"
-                answer += f"  - Construction Date: {row['Construction Date']}\n"
-                answer += f"  - Historical Status: {row['Historical Status']}\n"
-                if 'ABA Accessibility Flag' in row:
-                    answer += f"  - ABA Accessibility: {row['ABA Accessibility Flag']}\n"
-                answer += "\n"
-            response = answer
-        else:
-            response = "Sorry, I could not find any relevant building data for your question in the CSV database."
+        # 4. Call OpenAI for an answer
+        try:
+            completion = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "system", "content": prompt}],
+                temperature=0.2,
+                max_tokens=350
+            )
+            response = completion["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            response = f"Error with OpenAI API: {e}"
 
+        # 5. Add to chat history
         st.session_state.chat_history.append({"question": user_question, "answer": response})
+
     elif user_question:
-        st.sidebar.error("⚠️ Please click 'Compare Locations' first to load the data!")
+        st.sidebar.error("⚠️ Please click 'Compare Locations' first to load the data!")d the data!")
 # Display chat history
 if st.session_state.chat_history:
     st.sidebar.markdown("### Previous Questions")
