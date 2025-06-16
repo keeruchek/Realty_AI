@@ -8,7 +8,7 @@ import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import openai
-from some_module import semantic_retrieve_rexus
+
 
 # Page configuration
 st.set_page_config(
