@@ -817,7 +817,7 @@ if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_
         st.session_state.chat_history.append({"question": user_question, "answer": response})
 
     elif user_question:
-        st.sidebar.error("⚠️ Please click 'Compare Locations' first to load the data!")d the data!")
+        st.sidebar.error("⚠️ Please click 'Compare Locations' first to load the data!")
 # Display chat history
 if st.session_state.chat_history:
     st.sidebar.markdown("### Previous Questions")
