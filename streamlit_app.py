@@ -779,6 +779,10 @@ df_rexus = pd.read_csv("price.csv", dtype=str)
 # 2. Load or compute embeddings for address/city/state columns
 emb_model = SentenceTransformer('all-MiniLM-L6-v2')
 df_rexus = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+# Compute embeddings for the address+city+state columns
+rexus_embeddings = emb_model.encode(
+    df_rexus["Bldg Address1"] + " " + df_rexus["Bldg City"] + " " + df_rexus["Bldg State"]
+)
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
     <h2 style='color: #111827; margin-bottom: 1rem;'>🤖 AI Assistant</h2>
