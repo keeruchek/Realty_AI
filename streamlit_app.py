@@ -375,7 +375,7 @@ def get_real_estate_data(city: str, state: str):
         total_parking = city_df['Total Parking Spaces'].sum()
         building_count = city_df.shape[0]
         owned = city_df[city_df['Owned/Leased'] == 'OWNED'].shape[0]
-        leased = city_df[city_df['Owned/Leased'] == 'LEASED'].shape[0]' 
+        leased = city_df[city_df['Owned/Leased'] == 'LEASED'].shape[0]
         occupancy_rate = f"{100 * occupied_units / total_units:.0f}%" if total_units else "N/A"
         market_health = "82/100"  # Replace with your logic if needed
 
