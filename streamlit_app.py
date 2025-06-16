@@ -778,7 +778,7 @@ df_rexus = pd.read_csv("price.csv", dtype=str)
 
 # 2. Load or compute embeddings for address/city/state columns
 emb_model = SentenceTransformer('all-MiniLM-L6-v2')
-rexus_embeddings = emb_model.encode(df_rexus["Bldg Address1"] + " " + df_rexus["Bldg City"] + " " + df_rexus["Bldg State"])
+df_rexus = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
     <h2 style='color: #111827; margin-bottom: 1rem;'>🤖 AI Assistant</h2>
@@ -789,31 +789,22 @@ if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
 
 # Show different messages based on comparison state
-if not st.session_state.data1 or not st.session_state.data2:
-    st.sidebar.error("⚠️ Step 1: Click the 'Compare Locations' button above!")
-    st.sidebar.info("Step 2: Once data is loaded, you can ask questions here about schools, safety, prices, and more.")
-    st.sidebar.markdown("""
-        <div style='background-color: #f8fafc; padding: 0.75rem; border-radius: 0.5rem; margin-top: 1rem;'>
-            <p style='color: #4b5563; font-size: 0.875rem; margin: 0;'>
-                Example questions:
-                <br>• Which city has better schools?
-                <br>• How do home prices compare?
-                <br>• Which area is safer?
-            </p>
-        </div>
-    """, unsafe_allow_html=True)
-    user_question = st.sidebar.text_input(
-        "Ask me anything about these locations:",
-        placeholder="First, compare locations...",
-        key="user_input",
-        disabled=True
-    )
-else:
-    user_question = st.sidebar.text_input(
-        "Ask me anything about these locations:",
-        placeholder="E.g., Which location has better schools?",
-        key="user_input"
-    )
+st.sidebar.markdown("""
+    <div style='background-color: #f8fafc; padding: 0.75rem; border-radius: 0.5rem; margin-top: 1rem;'>
+        <p style='color: #4b5563; font-size: 0.875rem; margin: 0;'>
+            Example questions:
+            <br>• Which city has better schools?
+            <br>• How do home prices compare?
+            <br>• Which area is safer?
+        </p>
+    </div>
+""", unsafe_allow_html=True)
+
+user_question = st.sidebar.text_input(
+    "Ask me anything about these locations:",
+    placeholder="E.g., Which location has better schools?",
+    key="user_input"
+)
 retrieved_rows = semantic_retrieve_rexus(
     user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
 )
