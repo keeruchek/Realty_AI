@@ -359,7 +359,7 @@ def test_census_api():
         return False
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get avg price-to-rent ratio from price.csv for the given city and state"""
+    """Get avg rent for 'february 2011' from price.csv for the given city and state"""
     try:
         df = pd.read_csv("price.csv", dtype=str)
         city = city.strip().upper()
@@ -369,14 +369,13 @@ def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
             (df["state"].str.strip().str.upper() == state)
         ]
         if matches.empty:
-            return {"avg_price_to_rent": "No data"}
-        matches["price"] = matches["price"].astype(float)
-        matches["rent"] = matches["rent"].astype(float)
-        avg_ratio = (matches["price"] / matches["rent"]).mean()
-        return {"avg_price_to_rent": f"{avg_ratio:.2f}"}
+            return {"avg_rent_feb_2011": "No data"}
+        matches["february 2011"] = matches["february 2011"].astype(float)
+        avg_rent = matches["february 2011"].mean()
+        return {"avg_rent_feb_2011": f"{avg_rent:.2f}"}
     except Exception as e:
         st.error(f"Error reading real estate data from CSV: {str(e)}")
-        return {"avg_price_to_rent": "Error"}
+        return {"avg_rent_feb_2011": "Error"}
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
     """Get safety data from FBI UCR and local sources"""
     try:
@@ -582,21 +581,21 @@ def display_real_estate_section(data1, data2, location1, location2):
     """, unsafe_allow_html=True)
     col1, col2 = st.columns(2)
 
-    def show_ratio(data, location):
-        ratio = data.get('real_estate', {}).get('avg_price_to_rent', 'N/A')
+    def show_avg_rent(data, location):
+        avg_rent = data.get('real_estate', {}).get('avg_rent_feb_2011', 'N/A')
         st.markdown(f"""
             <div class='comparison-card'>
                 <h3 style='color: #111827; margin-bottom: 1rem;'>{location}</h3>
                 <div class='metrics-container'>
-                    <div class='metric-item'><span class='metric-title'>Avg Price-to-Rent Ratio:</span> <span class='metric-value'>{ratio}</span></div>
+                    <div class='metric-item'><span class='metric-title'>Avg Rent (Feb 2011):</span> <span class='metric-value'>{avg_rent}</span></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
     with col1:
-        show_ratio(data1, location1)
+        show_avg_rent(data1, location1)
     with col2:
-        show_ratio(data2, location2)
+        show_avg_rent(data2, location2)
     
     def display_market_metrics(data, location):
         try:
