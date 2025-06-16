@@ -7,7 +7,6 @@ from typing import Dict, Any
 import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from some_module import semantic_retrieve_rexus
 import openai
 
 # Page configuration
@@ -516,7 +515,9 @@ def get_education_data(city: str, state: str) -> Dict[str, Any]:
             "school_rating": "7.0/10",
             "total_schools": "35"
         }
-
+retrieved_rows = semantic_retrieve_rexus(
+            user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
+        )
 # Initialize data in session state
 if 'data1' not in st.session_state:
     st.session_state.data1 = None
@@ -776,9 +777,7 @@ else:
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
         # 1. Retrieve top relevant building rows using semantic search
-        retrieved_rows = semantic_retrieve_rexus(
-            user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
-        )
+        
 
         # 2. Build the context for the LLM
         context_snippets = []
