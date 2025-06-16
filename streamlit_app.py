@@ -355,38 +355,54 @@ def test_census_api():
         return False
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get random real estate data"""
+    """Get real estate data from data_gov_bldg_rexus.csv for the given city and state"""
     try:
-        import random
+        df = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+        # Filter by city and state (ignore case and possible spaces)
+        city = city.strip().upper()
+        state = state.strip().upper()
+        matches = df[(df["Bldg City"].str.strip().str.upper() == city) & (df["Bldg State"].str.strip().str.upper() == state)]
         
-        # Generate random values
-        price = random.randint(300000, 1500000)
-        rent = random.randint(1500, 4000)
-        units = random.randint(100000, 500000)
-        occupancy = random.randint(85, 98)
-        health = random.randint(60, 95)
-        
-        # Format and return the data
-        formatted_data = {
-            "median_price": f"${price:,}",
-            "median_rent": f"${rent:,}",
-            "total_units": f"{units:,}",
-            "occupancy_rate": f"{occupancy}%",
-            "market_health": f"{health}/100"
-        }
-        
-        return formatted_data
-        
+        if matches.empty:
+            return {
+                "median_price": "No data",
+                "median_rent": "No data",
+                "total_units": "No data",
+                "occupancy_rate": "No data",
+                "market_health": "No data",
+                "first_address": "No building found in database."
+            }
+        else:
+            # For demo, just take the first matching row
+            row = matches.iloc[0]
+            return {
+                "first_address": row["Bldg Address1"],
+                "building_status": row["Bldg Status"],
+                "property_type": row["Property Type"],
+                "usable_sqft": row["Bldg ANSI Usable"],
+                "total_parking": row["Total Parking Spaces"],
+                "owned_leased": row["Owned/Leased"],
+                "construction_date": row["Construction Date"],
+                "historical_status": row["Historical Status"],
+                "aba_accessibility": row.get("ABA Accessibility Flag", "Unknown"),
+                "city": row["Bldg City"],
+                "state": row["Bldg State"]
+            }
     except Exception as e:
-        st.error(f"Error generating real estate data: {str(e)}")
+        st.error(f"Error reading real estate data from CSV: {str(e)}")
         return {
-            "median_price": "N/A (Error)",
-            "median_rent": "N/A",
-            "total_units": "N/A",
-            "occupancy_rate": "N/A",
-            "market_health": "N/A"
+            "first_address": "Error",
+            "building_status": "Error",
+            "property_type": "Error",
+            "usable_sqft": "Error",
+            "total_parking": "Error",
+            "owned_leased": "Error",
+            "construction_date": "Error",
+            "historical_status": "Error",
+            "aba_accessibility": "Error",
+            "city": city,
+            "state": state
         }
-
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
     """Get safety data from FBI UCR and local sources"""
     try:
@@ -777,27 +793,47 @@ else:
 # Add a submit button to prevent auto-refresh
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
-        response = f"Based on the comparison between {location1} and {location2}, "
-        if "school" in user_question.lower():
-            rating1 = float(st.session_state.data1['education']['school_rating'].split('/')[0])
-            rating2 = float(st.session_state.data2['education']['school_rating'].split('/')[0])
-            better_location = location1 if rating1 > rating2 else location2
-            response += f"{better_location} has better schools with a rating of {st.session_state.data1['education']['school_rating'] if better_location == location1 else st.session_state.data2['education']['school_rating']}."
-        elif "safe" in user_question.lower() or "crime" in user_question.lower():
-            safety1 = float(st.session_state.data1['safety']['safety_score'].strip('%'))
-            safety2 = float(st.session_state.data2['safety']['safety_score'].strip('%'))
-            better_location = location1 if safety1 > safety2 else location2
-            response += f"{better_location} has a higher safety score of {st.session_state.data1['safety']['safety_score'] if better_location == location1 else st.session_state.data2['safety']['safety_score']}."
-        elif "cost" in user_question.lower() or "price" in user_question.lower() or "house" in user_question.lower():
-            response += f"The median home price in {location1} is {st.session_state.data1['real_estate']['median_price']} compared to {st.session_state.data2['real_estate']['median_price']} in {location2}."
+        # Combine both location data into a list for searching
+        import re
+        df = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+        result_rows = []
+
+        # Try to find any building matching keywords in the question
+        pattern = re.compile(re.escape(user_question), re.IGNORECASE)
+        # Search all columns for the question string
+        for idx, row in df.iterrows():
+            if any(pattern.search(str(val)) for val in row.values):
+                result_rows.append(row)
+
+        # If no direct match, try to be helpful by showing all buildings in both compared cities
+        if not result_rows:
+            city1 = st.session_state.data1['real_estate'].get('city', '').upper()
+            city2 = st.session_state.data2['real_estate'].get('city', '').upper()
+            matches = df[df["Bldg City"].str.strip().str.upper().isin([city1, city2])]
+            if not matches.empty:
+                result_rows = [row for idx, row in matches.iterrows()]
+
+        if result_rows:
+            # Show up to 3 results
+            answer = ""
+            for row in result_rows[:3]:
+                answer += f"- **Address:** {row['Bldg Address1']}, {row['Bldg City']}, {row['Bldg State']} ({row['Bldg Status']})\n"
+                answer += f"  - Property Type: {row['Property Type']}\n"
+                answer += f"  - Usable SqFt: {row['Bldg ANSI Usable']}\n"
+                answer += f"  - Parking Spaces: {row['Total Parking Spaces']}\n"
+                answer += f"  - Owned/Leased: {row['Owned/Leased']}\n"
+                answer += f"  - Construction Date: {row['Construction Date']}\n"
+                answer += f"  - Historical Status: {row['Historical Status']}\n"
+                if 'ABA Accessibility Flag' in row:
+                    answer += f"  - ABA Accessibility: {row['ABA Accessibility Flag']}\n"
+                answer += "\n"
+            response = answer
         else:
-            response += "both locations have their unique advantages. For specific details, please refer to the comparison above."
-        
-        # Add to chat history
+            response = "Sorry, I could not find any relevant building data for your question in the CSV database."
+
         st.session_state.chat_history.append({"question": user_question, "answer": response})
     elif user_question:
         st.sidebar.error("⚠️ Please click 'Compare Locations' first to load the data!")
-
 # Display chat history
 if st.session_state.chat_history:
     st.sidebar.markdown("### Previous Questions")
