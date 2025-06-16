@@ -745,7 +745,14 @@ if st.session_state.data1 and st.session_state.data2:
                 
     except Exception as e:
         st.error(f"Error displaying comparison sections: {str(e)}")
+# --- Initialization for AI Assistant (Chatbot) ---
 
+# 1. Load DataFrame (adjust the path as needed)
+df_rexus = pd.read_csv("data_gov_bldg_rexus.csv", dtype=str)
+
+# 2. Load or compute embeddings for address/city/state columns
+emb_model = SentenceTransformer('all-MiniLM-L6-v2')
+rexus_embeddings = emb_model.encode(df_rexus["Bldg Address1"] + " " + df_rexus["Bldg City"] + " " + df_rexus["Bldg State"])
 # Add chatbot interface in sidebar with improved styling
 st.sidebar.markdown("""
     <h2 style='color: #111827; margin-bottom: 1rem;'>🤖 AI Assistant</h2>
@@ -781,7 +788,9 @@ else:
         placeholder="E.g., Which location has better schools?",
         key="user_input"
     )
-
+retrieved_rows = semantic_retrieve_rexus(
+    user_question, df_rexus, rexus_embeddings, emb_model, top_k=3
+)
 # Add a submit button to prevent auto-refresh
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
