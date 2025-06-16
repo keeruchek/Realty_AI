@@ -698,21 +698,20 @@ else:
 # Add a submit button to prevent auto-refresh
 if st.sidebar.button("Ask", disabled=not (st.session_state.data1 and st.session_state.data2)):
     if user_question:
-        response = f"Based on the comparison between {location1} and {location2}, "
-        if "school" in user_question.lower():
-            rating1 = float(st.session_state.data1['education']['school_rating'].split('/')[0])
-            rating2 = float(st.session_state.data2['education']['school_rating'].split('/')[0])
-            better_location = location1 if rating1 > rating2 else location2
-            response += f"{better_location} has better schools with a rating of {st.session_state.data1['education']['school_rating'] if better_location == location1 else st.session_state.data2['education']['school_rating']}."
-        elif "safe" in user_question.lower() or "crime" in user_question.lower():
-            safety1 = float(st.session_state.data1['safety']['safety_score'].strip('%'))
-            safety2 = float(st.session_state.data2['safety']['safety_score'].strip('%'))
-            better_location = location1 if safety1 > safety2 else location2
-            response += f"{better_location} has a higher safety score of {st.session_state.data1['safety']['safety_score'] if better_location == location1 else st.session_state.data2['safety']['safety_score']}."
-        elif "cost" in user_question.lower() or "price" in user_question.lower() or "house" in user_question.lower():
+        response = f"Based on the real estate data from the CSV for {location1} and {location2}, "
+        # Only use real estate data from CSV for chat responses
+        if "price" in user_question.lower() or "cost" in user_question.lower() or "house" in user_question.lower():
             response += f"The median home price in {location1} is {st.session_state.data1['real_estate']['median_price']} compared to {st.session_state.data2['real_estate']['median_price']} in {location2}."
+        elif "rent" in user_question.lower():
+            response += f"The median rent in {location1} is {st.session_state.data1['real_estate']['median_rent']} compared to {st.session_state.data2['real_estate']['median_rent']} in {location2}."
+        elif "units" in user_question.lower() or "housing" in user_question.lower():
+            response += f"{location1} has {st.session_state.data1['real_estate']['total_units']} total housing units, while {location2} has {st.session_state.data2['real_estate']['total_units']}."
+        elif "occupancy" in user_question.lower():
+            response += f"The occupancy rate in {location1} is {st.session_state.data1['real_estate']['occupancy_rate']} compared to {st.session_state.data2['real_estate']['occupancy_rate']} in {location2}."
+        elif "market" in user_question.lower() or "health" in user_question.lower():
+            response += f"The market health score for {location1} is {st.session_state.data1['real_estate']['market_health']} and for {location2} is {st.session_state.data2['real_estate']['market_health']}."
         else:
-            response += "both locations have their unique advantages. For specific details, please refer to the comparison above."
+            response += "both locations have unique real estate characteristics. For detailed info, please refer to the comparison above."
         
         # Add to chat history
         st.session_state.chat_history.append({"question": user_question, "answer": response})
