@@ -359,54 +359,24 @@ def test_census_api():
         return False
 
 def get_real_estate_data(city: str, state: str) -> Dict[str, Any]:
-    """Get real estate data from data_gov_bldg_rexus.csv for the given city and state"""
+    """Get avg price-to-rent ratio from price.csv for the given city and state"""
     try:
         df = pd.read_csv("price.csv", dtype=str)
-        # Filter by city and state (ignore case and possible spaces)
         city = city.strip().upper()
         state = state.strip().upper()
-        matches = df[(df["Bldg City"].str.strip().str.upper() == city) & (df["Bldg State"].str.strip().str.upper() == state)]
-        
+        matches = df[
+            (df["city"].str.strip().str.upper() == city) &
+            (df["state"].str.strip().str.upper() == state)
+        ]
         if matches.empty:
-            return {
-                "median_price": "No data",
-                "median_rent": "No data",
-                "total_units": "No data",
-                "occupancy_rate": "No data",
-                "market_health": "No data",
-                "first_address": "No building found in database."
-            }
-        else:
-            # For demo, just take the first matching row
-            row = matches.iloc[0]
-            return {
-                "first_address": row["Bldg Address1"],
-                "building_status": row["Bldg Status"],
-                "property_type": row["Property Type"],
-                "usable_sqft": row["Bldg ANSI Usable"],
-                "total_parking": row["Total Parking Spaces"],
-                "owned_leased": row["Owned/Leased"],
-                "construction_date": row["Construction Date"],
-                "historical_status": row["Historical Status"],
-                "aba_accessibility": row.get("ABA Accessibility Flag", "Unknown"),
-                "city": row["Bldg City"],
-                "state": row["Bldg State"]
-            }
+            return {"avg_price_to_rent": "No data"}
+        matches["price"] = matches["price"].astype(float)
+        matches["rent"] = matches["rent"].astype(float)
+        avg_ratio = (matches["price"] / matches["rent"]).mean()
+        return {"avg_price_to_rent": f"{avg_ratio:.2f}"}
     except Exception as e:
         st.error(f"Error reading real estate data from CSV: {str(e)}")
-        return {
-            "first_address": "Error",
-            "building_status": "Error",
-            "property_type": "Error",
-            "usable_sqft": "Error",
-            "total_parking": "Error",
-            "owned_leased": "Error",
-            "construction_date": "Error",
-            "historical_status": "Error",
-            "aba_accessibility": "Error",
-            "city": city,
-            "state": state
-        }
+        return {"avg_price_to_rent": "Error"}
 def get_safety_data(city: str, state: str) -> Dict[str, Any]:
     """Get safety data from FBI UCR and local sources"""
     try:
@@ -610,8 +580,23 @@ def display_real_estate_section(data1, data2, location1, location2):
             🏠 Real Estate Market Data
         </h2>
     """, unsafe_allow_html=True)
-    
     col1, col2 = st.columns(2)
+
+    def show_ratio(data, location):
+        ratio = data.get('real_estate', {}).get('avg_price_to_rent', 'N/A')
+        st.markdown(f"""
+            <div class='comparison-card'>
+                <h3 style='color: #111827; margin-bottom: 1rem;'>{location}</h3>
+                <div class='metrics-container'>
+                    <div class='metric-item'><span class='metric-title'>Avg Price-to-Rent Ratio:</span> <span class='metric-value'>{ratio}</span></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col1:
+        show_ratio(data1, location1)
+    with col2:
+        show_ratio(data2, location2)
     
     def display_market_metrics(data, location):
         try:
