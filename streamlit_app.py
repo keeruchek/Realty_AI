@@ -7,6 +7,7 @@ from typing import Dict, Any
 import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from some_module import semantic_retrieve_rexus
 import openai
 
 # Page configuration
